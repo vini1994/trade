@@ -1,0 +1,218 @@
+import axios from 'axios';
+import sqlite3 from 'sqlite3';
+import { open } from 'sqlite';
+import * as path from 'path';
+import crypto from 'crypto';
+import * as dotenv from 'dotenv';
+
+// Load environment variables
+dotenv.config();
+
+interface KlineData {
+    time: number;      // k-line time stamp, unit millis
+    open: number;      // Opening Price
+    high: number;      // High Price
+    low: number;       // Low Price
+    close: number;     // Closing Price
+    volume: number;    // transaction volume
+}
+
+interface CacheKey {
+    symbol: string;
+    hour: number;
+    day: number;
+    month: number;
+    year: number;
+}
+
+export class BingXDataService {
+    private readonly baseUrl: string;
+    private readonly apiKey: string;
+    private readonly apiSecret: string;
+    private db: any;
+
+    constructor() {
+        this.baseUrl = process.env.BINGX_BASE_URL || 'https://open-api.bingx.com';
+        this.apiKey = process.env.BINGX_API_KEY || '';
+        this.apiSecret = process.env.BINGX_API_SECRET || '';
+        this.initializeDatabase();
+    }
+
+    private async initializeDatabase() {
+        const dbPath = path.join(__dirname, '../data/bingx_cache.db');
+        this.db = await open({
+            filename: dbPath,
+            driver: sqlite3.Database
+        });
+
+        await this.db.exec(`
+            CREATE TABLE IF NOT EXISTS kline_cache (
+                symbol TEXT,
+                hour INTEGER,
+                day INTEGER,
+                month INTEGER,
+                year INTEGER,
+                data TEXT,
+                timestamp INTEGER,
+                PRIMARY KEY (symbol, hour, day, month, year)
+            )
+        `);
+    }
+
+    private getCurrentTimeComponents(): CacheKey {
+        const now = new Date();
+        return {
+            symbol: '', // This will be set when calling getCachedData
+            hour: now.getHours(),
+            day: now.getDate(),
+            month: now.getMonth() + 1, // getMonth() returns 0-11
+            year: now.getFullYear()
+        };
+    }
+
+    private async getCachedData(symbol: string, timeComponents: CacheKey): Promise<KlineData[] | null> {
+        const result = await this.db.get(
+            'SELECT data FROM kline_cache WHERE symbol = ? AND hour = ? AND day = ? AND month = ? AND year = ?',
+            [symbol, timeComponents.hour, timeComponents.day, timeComponents.month, timeComponents.year]
+        );
+
+        if (result) {
+            return JSON.parse(result.data);
+        }
+        return null;
+    }
+
+    private async cacheData(symbol: string, timeComponents: CacheKey, data: KlineData[]): Promise<void> {
+        await this.db.run(
+            'INSERT OR REPLACE INTO kline_cache (symbol, hour, day, month, year, data, timestamp) VALUES (?, ?, ?, ?, ?, ?, ?)',
+            [symbol, timeComponents.hour, timeComponents.day, timeComponents.month, timeComponents.year, JSON.stringify(data), Date.now()]
+        );
+    }
+
+    private generateSignature(timestamp: number, method: string, path: string, params: any): string {
+        const queryString = Object.entries(params)
+            .sort(([a], [b]) => a.localeCompare(b))
+            .map(([key, value]) => `${key}=${value}`)
+            .join('&');
+
+        const signatureString = `${timestamp}${method}${path}${queryString}`;
+        return crypto
+            .createHmac('sha256', this.apiSecret)
+            .update(signatureString)
+            .digest('hex');
+    }
+
+    private parseKlineData(kline: any): KlineData {
+        return {
+            time: kline.time,
+            open: parseFloat(kline.open),
+            high: parseFloat(kline.high),
+            low: parseFloat(kline.low),
+            close: parseFloat(kline.close),
+            volume: parseFloat(kline.volume)
+        };
+    }
+
+    public async getKlineData(symbol: string): Promise<KlineData[]> {
+        const timeComponents = this.getCurrentTimeComponents();
+        
+        // Check cache first
+        const cachedData = await this.getCachedData(symbol, timeComponents);
+        if (cachedData) {
+            console.log(`Returning cached data for ${symbol} at ${timeComponents.hour}:00 on ${timeComponents.day}/${timeComponents.month}/${timeComponents.year}`);
+            return cachedData;
+        }
+
+        try {
+            const timestamp = Date.now();
+            const path = '/openApi/swap/v2/quote/klines';
+            const params = {
+                symbol: symbol,
+                interval: '1h',
+                limit: 55,
+                timestamp: timestamp.toString()
+            };
+
+            const signature = this.generateSignature(timestamp, 'GET', path, params);
+
+            const response = await axios.get(`${this.baseUrl}${path}`, {
+                params,
+                headers: {
+                    'X-BX-APIKEY': this.apiKey,
+                    'X-BX-SIGN': signature,
+                    'X-BX-TIMESTAMP': timestamp.toString()
+                }
+            });
+
+            const klineData = response.data.data.map(this.parseKlineData);
+            
+            // Cache the data
+            await this.cacheData(symbol, timeComponents, klineData);
+            
+            console.log(`Fetched and cached new data for ${symbol} at ${timeComponents.hour}:00 on ${timeComponents.day}/${timeComponents.month}/${timeComponents.year}`);
+            return klineData;
+        } catch (error) {
+            console.error(`Error fetching data for ${symbol}:`, error);
+            throw error;
+        }
+    }
+
+    public async getSymbolPrice(symbol: string): Promise<number> {
+        try {
+            const timestamp = Date.now();
+            const path = '/openApi/swap/v2/quote/ticker';
+            const params = {
+                symbol: symbol,
+                timestamp: timestamp.toString()
+            };
+
+            const signature = this.generateSignature(timestamp, 'GET', path, params);
+
+            const response = await axios.get(`${this.baseUrl}${path}`, {
+                params,
+                headers: {
+                    'X-BX-APIKEY': this.apiKey,
+                    'X-BX-SIGN': signature,
+                    'X-BX-TIMESTAMP': timestamp.toString()
+                }
+            });
+
+            return parseFloat(response.data.data.lastPrice);
+        } catch (error) {
+            console.error(`Error fetching price for ${symbol}:`, error);
+            throw error;
+        }
+    }
+
+    public async getSymbolInfo(symbol: string): Promise<{
+        maxLeverage: number;
+        minLeverage: number;
+        maxPositionValue: number;
+        minPositionValue: number;
+    }> {
+        try {
+            const timestamp = Date.now();
+            const path = '/openApi/swap/v2/quote/contract';
+            const params = {
+                symbol: symbol,
+                timestamp: timestamp.toString()
+            };
+
+            const signature = this.generateSignature(timestamp, 'GET', path, params);
+
+            const response = await axios.get(`${this.baseUrl}${path}`, {
+                params,
+                headers: {
+                    'X-BX-APIKEY': this.apiKey,
+                    'X-BX-SIGN': signature,
+                    'X-BX-TIMESTAMP': timestamp.toString()
+                }
+            });
+
+            return response.data.data;
+        } catch (error) {
+            console.error(`Error fetching symbol info for ${symbol}:`, error);
+            throw error;
+        }
+    }
+} 
