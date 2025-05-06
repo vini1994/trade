@@ -36,13 +36,13 @@ export class TradeEntryAnalyzer {
             }
             
             if (type === 'LONG') {
-                // For LONG, check if any close is between stop and entry
-                if (close >= stop && close <= entry) {
+                // For LONG, return true if any close is less than entry
+                if (close < entry) {
                     return true;
                 }
             } else {
-                // For SHORT, check if any close is between entry and stop
-                if (close <= stop && close >= entry) {
+                // For SHORT, return true if any close is greater than entry
+                if (close > entry) {
                     return true;
                 }
             }
