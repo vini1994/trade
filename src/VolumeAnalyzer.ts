@@ -1,4 +1,5 @@
 import { BinanceDataService } from './BinanceDataService';
+import { BingXDataService } from './BingXDataService';
 
 export enum VolumeColor {
     RED = 'red',
@@ -10,6 +11,7 @@ export enum VolumeColor {
 
 export class VolumeAnalyzer {
     private readonly binanceService: BinanceDataService;
+    private readonly bingxService: BingXDataService;
     private readonly thresholdExtraHigh: number = 4;
     private readonly thresholdHigh: number = 2.5;
     private readonly thresholdMedium: number = 1;
@@ -17,6 +19,7 @@ export class VolumeAnalyzer {
 
     constructor() {
         this.binanceService = new BinanceDataService();
+        this.bingxService = new BingXDataService();
     }
 
     private calculateMean(volumes: number[]): number {
@@ -49,20 +52,13 @@ export class VolumeAnalyzer {
         currentVolume: number;
     }> {
         try {
+            // Try Binance first
             const klineData = await this.binanceService.getKlineData(symbol);
-            
-            // Convert volume strings to numbers
             const volumes = klineData.map(kline => parseFloat(kline.volume));
-            
-            // Get the most recent volume
             const currentVolume = volumes[volumes.length - 1];
-            
-            // Calculate statistics
             const mean = this.calculateMean(volumes);
             const std = this.calculateStd(volumes, mean);
             const stdBar = this.calculateStdBar(currentVolume, mean, std);
-            
-            // Determine color based on stdBar
             const color = this.getVolumeColor(stdBar);
 
             return {
@@ -73,8 +69,29 @@ export class VolumeAnalyzer {
                 currentVolume
             };
         } catch (error) {
-            console.error(`Error analyzing volume for ${symbol}:`, error);
-            throw error;
+            console.error(`Error analyzing volume for ${symbol} on Binance, trying BingX:`, error);
+            // Fallback to BingX if Binance fails
+            try {
+                const klineData = await this.bingxService.getKlineData(symbol);
+                // On BingX, volume is already a number
+                const volumes = klineData.map(kline => kline.volume);
+                const currentVolume = volumes[volumes.length - 1];
+                const mean = this.calculateMean(volumes);
+                const std = this.calculateStd(volumes, mean);
+                const stdBar = this.calculateStdBar(currentVolume, mean, std);
+                const color = this.getVolumeColor(stdBar);
+
+                return {
+                    color,
+                    stdBar,
+                    mean,
+                    std,
+                    currentVolume
+                };
+            } catch (bingxError) {
+                console.error(`Error analyzing volume for ${symbol} on BingX:`, bingxError);
+                throw new Error(`Failed to analyze volume for ${symbol} using both Binance and BingX`);
+            }
         }
     }
 } 
