@@ -6,6 +6,7 @@ interface Trade {
     type: 'LONG' | 'SHORT';
     entry: number;
     stop: number;
+    volume: boolean;
 }
 
 export class TradeValidator {
@@ -57,7 +58,7 @@ export class TradeValidator {
             const isVolumeValid = this.isVolumeValid(volumeAnalysis.color);
 
             // Determine if the trade is valid
-            const isValid = isEntryValid && isVolumeValid;
+            const isValid = isEntryValid && (trade.volume ? isVolumeValid : true);
 
             // Generate appropriate message
             let message = '';

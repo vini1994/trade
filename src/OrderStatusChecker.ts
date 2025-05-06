@@ -129,7 +129,7 @@ export class OrderStatusChecker {
                     orderStatuses.set(orderId, status);
                 } catch (error) {
                     console.error(`Error fetching status for order ${orderId}:`, error);
-                    orderStatuses.set(orderId, null);
+                    //orderStatuses.set(orderId, null);
                 }
             })
         );

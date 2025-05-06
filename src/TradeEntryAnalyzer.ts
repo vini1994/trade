@@ -62,7 +62,7 @@ export class TradeEntryAnalyzer {
             const klineData = await this.binanceService.getKlineData(symbol);
             
             // Get the most recent close price
-            const currentClose = klineData[0].close;
+            const currentClose = Number(klineData[0].close);
             
             // Check if entry condition is met
             const entryConditionMet = this.isEntryConditionMet(currentClose, entry, type);
@@ -100,7 +100,7 @@ export class TradeEntryAnalyzer {
                 const klineData = await this.bingxService.getKlineData(symbol);
                 
                 // Get the most recent close price
-                const currentClose = klineData[0].close;
+                const currentClose = Number(klineData[0].close);
                 
                 // Check if entry condition is met
                 const entryConditionMet = this.isEntryConditionMet(currentClose, entry, type);
