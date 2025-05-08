@@ -22,7 +22,7 @@ export class BinanceDataService {
     }
 
     private async initializeDatabase() {
-        const dbPath = path.join(__dirname, '../data/binance_cache.db');
+        const dbPath = path.join(__dirname, '../db/binance_cache.db');
         this.db = await open({
             filename: dbPath,
             driver: sqlite3.Database

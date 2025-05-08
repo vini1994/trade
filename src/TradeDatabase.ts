@@ -59,7 +59,7 @@ export class TradeDatabase {
     }
 
     private async initializeDatabase() {
-        const dbPath = path.join(__dirname, '../data/trades.db');
+        const dbPath = path.join(__dirname, '../db/trades.db');
         this.db = await open({
             filename: dbPath,
             driver: sqlite3.Database

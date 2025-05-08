@@ -32,7 +32,7 @@ export class BingXDataService {
     }
 
     private async initializeDatabase() {
-        const dbPath = path.join(__dirname, '../data/bingx_cache.db');
+        const dbPath = path.join(__dirname, '../db/bingx_cache.db');
         this.db = await open({
             filename: dbPath,
             driver: sqlite3.Database
