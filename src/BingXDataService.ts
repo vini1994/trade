@@ -4,18 +4,11 @@ import { open } from 'sqlite';
 import * as path from 'path';
 import crypto from 'crypto';
 import * as dotenv from 'dotenv';
+import { KlineData } from './utils/types';
 
 // Load environment variables
 dotenv.config();
 
-interface KlineData {
-    time: number;      // k-line time stamp, unit millis
-    open: number;      // Opening Price
-    high: number;      // High Price
-    low: number;       // Low Price
-    close: number;     // Closing Price
-    volume: number;    // transaction volume
-}
 
 interface CacheKey {
     symbol: string;
@@ -104,12 +97,18 @@ export class BingXDataService {
 
     private parseKlineData(kline: any): KlineData {
         return {
-            time: kline.time,
-            open: parseFloat(kline.open),
-            high: parseFloat(kline.high),
-            low: parseFloat(kline.low),
-            close: parseFloat(kline.close),
-            volume: parseFloat(kline.volume)
+            openTime: kline.time,
+            open: kline.open,
+            high: kline.high,
+            low: kline.low,
+            close: kline.close,
+            volume: kline.volume,
+            closeTime: kline.time,
+            quoteAssetVolume: "0",
+            numberOfTrades: 0,
+            takerBuyBaseAssetVolume: "0",
+            takerBuyQuoteAssetVolume: "0"
+        
         };
     }
 
@@ -129,7 +128,7 @@ export class BingXDataService {
             const params = {
                 symbol: symbol,
                 interval: '1h',
-                limit: 55,
+                limit: 56,
                 timestamp: timestamp.toString()
             };
 

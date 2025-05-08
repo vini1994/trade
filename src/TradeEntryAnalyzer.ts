@@ -1,15 +1,13 @@
-import { BinanceDataService } from './BinanceDataService';
-import { BingXDataService } from './BingXDataService';
+import { DataServiceManager } from './DataServiceManager';
+import { KlineData } from './utils/types';
 
 export type TradeType = 'LONG' | 'SHORT';
 
 export class TradeEntryAnalyzer {
-    private readonly binanceService: BinanceDataService;
-    private readonly bingxService: BingXDataService;
+    private readonly dataServiceManager: DataServiceManager;
 
     constructor() {
-        this.binanceService = new BinanceDataService();
-        this.bingxService = new BingXDataService();
+        this.dataServiceManager = new DataServiceManager();
     }
 
     private isEntryConditionMet(currentClose: number, entry: number, type: TradeType): boolean {
@@ -20,15 +18,15 @@ export class TradeEntryAnalyzer {
         }
     }
 
-    private hasPriceInRange(klineData: any[], entry: number, stop: number, type: TradeType): boolean {
+    private hasPriceInRange(klineData: KlineData[], entry: number, stop: number, type: TradeType): boolean {
         // Sort by close time in descending order (most recent first)
-        const sortedData = [...klineData].sort((a, b) => b.time - a.time);
+        const sortedData = [...klineData].sort((a, b) => b.closeTime - a.closeTime);
         
         // Skip the most recent candle as we already checked it
-        const dataToCheck = sortedData.slice(1);
+        const dataToCheck = sortedData.slice(-1).reverse();
 
         for (const kline of dataToCheck) {
-            const close = kline.close;
+            const close = parseFloat(kline.close);
             
             // First check if this close meets entry condition
             if (this.isEntryConditionMet(close, entry, type)) {
@@ -58,11 +56,11 @@ export class TradeEntryAnalyzer {
         message: string;
     }> {
         try {
-            // Try Binance first
-            const klineData = await this.binanceService.getKlineData(symbol);
+            // Get data from either Binance or BingX using DataServiceManager
+            const { data: klineData, source } = await this.dataServiceManager.getKlineData(symbol);
             
             // Get the most recent close price
-            const currentClose = Number(klineData[0].close);
+            const currentClose = parseFloat(klineData[klineData.length - 2].close);
             
             // Check if entry condition is met
             const entryConditionMet = this.isEntryConditionMet(currentClose, entry, type);
@@ -79,11 +77,11 @@ export class TradeEntryAnalyzer {
             // Generate appropriate message
             let message = '';
             if (!entryConditionMet) {
-                message = `Entry condition not met. Current close (${currentClose}) is not ${type === 'LONG' ? 'above' : 'below'} entry (${entry})`;
+                message = `Entry condition not met. Current close (${currentClose}) is not ${type === 'LONG' ? 'above' : 'below'} entry (${entry}) [${source}]`;
             } else if (hasPriceInRange) {
-                message = `Entry condition met but price has been between stop (${stop}) and entry (${entry})`;
+                message = `Entry condition met but price has been between stop (${stop}) and entry (${entry}) [${source}]`;
             } else {
-                message = `Entry condition met and no price has been between stop (${stop}) and entry (${entry})`;
+                message = `Entry condition met and no price has been between stop (${stop}) and entry (${entry}) [${source}]`;
             }
 
             return {
@@ -92,48 +90,9 @@ export class TradeEntryAnalyzer {
                 hasPriceInRange,
                 message
             };
-        } catch (error) {
-            console.error(`Error with Binance data for ${symbol}, trying BingX:`, error);
-            
-            try {
-                // Try BingX as fallback
-                const klineData = await this.bingxService.getKlineData(symbol);
-                
-                // Get the most recent close price
-                const currentClose = Number(klineData[0].close);
-                
-                // Check if entry condition is met
-                const entryConditionMet = this.isEntryConditionMet(currentClose, entry, type);
-                
-                // If entry condition is met, check for prices in range
-                let hasPriceInRange = false;
-                if (entryConditionMet) {
-                    hasPriceInRange = this.hasPriceInRange(klineData, entry, stop, type);
-                }
-
-                // Determine if we can enter the trade
-                const canEnter = entryConditionMet && !hasPriceInRange;
-
-                // Generate appropriate message
-                let message = '';
-                if (!entryConditionMet) {
-                    message = `Entry condition not met. Current close (${currentClose}) is not ${type === 'LONG' ? 'above' : 'below'} entry (${entry}) [BingX]`;
-                } else if (hasPriceInRange) {
-                    message = `Entry condition met but price has been between stop (${stop}) and entry (${entry}) [BingX]`;
-                } else {
-                    message = `Entry condition met and no price has been between stop (${stop}) and entry (${entry}) [BingX]`;
-                }
-
-                return {
-                    canEnter,
-                    currentClose,
-                    hasPriceInRange,
-                    message
-                };
-            } catch (bingxError) {
-                console.error(`Error with BingX data for ${symbol}:`, bingxError);
-                throw new Error(`Failed to analyze entry for ${symbol} using both Binance and BingX`);
-            }
+        } catch (error: any) {
+            console.error(`Error analyzing entry for ${symbol}:`, error);
+            throw new Error(`Failed to analyze entry for ${symbol}: ${error.message}`);
         }
     }
 } 

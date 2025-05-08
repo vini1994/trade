@@ -1,5 +1,6 @@
 import { TradeEntryAnalyzer } from './TradeEntryAnalyzer';
 import { VolumeAnalyzer, VolumeColor } from './VolumeAnalyzer';
+import { KlineData } from './utils/types';
 
 interface Trade {
     symbol: string;

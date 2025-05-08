@@ -2,20 +2,8 @@ import axios from 'axios';
 import sqlite3 from 'sqlite3';
 import { open } from 'sqlite';
 import * as path from 'path';
+import { KlineData } from './utils/types';
 
-interface KlineData {
-    openTime: number;
-    open: string;
-    high: string;
-    low: string;
-    close: string;
-    volume: string;
-    closeTime: number;
-    quoteAssetVolume: string;
-    numberOfTrades: number;
-    takerBuyBaseAssetVolume: string;
-    takerBuyQuoteAssetVolume: string;
-}
 
 interface CacheKey {
     symbol: string;
@@ -115,7 +103,7 @@ export class BinanceDataService {
                 params: {
                     symbol: symbol,
                     interval: '1h',
-                    limit: 55
+                    limit: 56
                 }
             });
 
