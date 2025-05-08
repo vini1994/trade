@@ -10,26 +10,26 @@ export class TradeEntryAnalyzer {
         this.dataServiceManager = new DataServiceManager();
     }
 
-    private isEntryConditionMet(currentClose: number, entry: number, type: TradeType): boolean {
+    private isEntryConditionMet(currentCandle: KlineData, entry: number, type: TradeType): boolean {
         if (type === 'LONG') {
-            return currentClose >= entry;
+            return parseFloat(currentCandle.close) > entry && parseFloat(currentCandle.low) <= entry;
         } else {
-            return currentClose <= entry;
+            return parseFloat(currentCandle.close) < entry && parseFloat(currentCandle.high) >= entry;
         }
     }
 
-    private hasPriceInRange(klineData: KlineData[], entry: number, stop: number, type: TradeType): boolean {
+    private hasClosePriceBeforeEntry(klineData: KlineData[], entry: number, type: TradeType): boolean {
         // Sort by close time in descending order (most recent first)
         const sortedData = [...klineData].sort((a, b) => b.closeTime - a.closeTime);
         
         // Skip the most recent candle as we already checked it
-        const dataToCheck = sortedData.slice(-1).reverse();
+        const dataToCheck = sortedData.slice(2)
 
         for (const kline of dataToCheck) {
             const close = parseFloat(kline.close);
             
             // First check if this close meets entry condition
-            if (this.isEntryConditionMet(close, entry, type)) {
+            if (this.isEntryConditionMet(kline, entry, type)) {
                 return false; // Found a close that meets entry condition, stop checking
             }
             
@@ -52,7 +52,7 @@ export class TradeEntryAnalyzer {
     public async analyzeEntry(symbol: string, type: TradeType, entry: number, stop: number): Promise<{
         canEnter: boolean;
         currentClose: number;
-        hasPriceInRange: boolean;
+        hasClosePriceBeforeEntry: boolean;
         message: string;
     }> {
         try {
@@ -60,34 +60,35 @@ export class TradeEntryAnalyzer {
             const { data: klineData, source } = await this.dataServiceManager.getKlineData(symbol);
             
             // Get the most recent close price
-            const currentClose = parseFloat(klineData[klineData.length - 2].close);
+            const currentCandle = klineData[klineData.length - 2];
+            const currentClose = parseFloat(currentCandle.close);
             
             // Check if entry condition is met
-            const entryConditionMet = this.isEntryConditionMet(currentClose, entry, type);
+            const entryConditionMet = this.isEntryConditionMet(currentCandle, entry, type);
             
             // If entry condition is met, check for prices in range
-            let hasPriceInRange = false;
+            let hasClosePriceBeforeEntry = false;
             if (entryConditionMet) {
-                hasPriceInRange = this.hasPriceInRange(klineData, entry, stop, type);
+                hasClosePriceBeforeEntry = this.hasClosePriceBeforeEntry(klineData, entry, type);
             }
 
             // Determine if we can enter the trade
-            const canEnter = entryConditionMet && !hasPriceInRange;
+            const canEnter = entryConditionMet && hasClosePriceBeforeEntry;
 
             // Generate appropriate message
             let message = '';
             if (!entryConditionMet) {
                 message = `Entry condition not met. Current close (${currentClose}) is not ${type === 'LONG' ? 'above' : 'below'} entry (${entry}) [${source}]`;
-            } else if (hasPriceInRange) {
-                message = `Entry condition met but price has been between stop (${stop}) and entry (${entry}) [${source}]`;
+            } else if (!hasClosePriceBeforeEntry) {
+                message = `Entry condition met but no price has been close before entry (${entry}) [${source}]`;
             } else {
-                message = `Entry condition met and no price has been between stop (${stop}) and entry (${entry}) [${source}]`;
+                message = `Entry condition met and price has been close before entry (${entry}) [${source}]`;
             }
 
             return {
                 canEnter,
                 currentClose,
-                hasPriceInRange,
+                hasClosePriceBeforeEntry,
                 message
             };
         } catch (error: any) {

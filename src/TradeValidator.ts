@@ -30,7 +30,7 @@ export class TradeValidator {
         entryAnalysis: {
             canEnter: boolean;
             currentClose: number;
-            hasPriceInRange: boolean;
+            hasClosePriceBeforeEntry: boolean;
             message: string;
         };
         volumeAnalysis: {
@@ -54,12 +54,18 @@ export class TradeValidator {
                 this.volumeAnalyzer.analyzeVolume(trade.symbol)
             ]);
 
+            
+
             // Check if both conditions are met
             const isEntryValid = entryAnalysis.canEnter;
-            const isVolumeValid = this.isVolumeValid(volumeAnalysis.color);
+            let isVolumeValid = this.isVolumeValid(volumeAnalysis.color);
+
+            if (trade.volume == false) {
+                isVolumeValid = true;
+            }
 
             // Determine if the trade is valid
-            const isValid = isEntryValid && (trade.volume ? isVolumeValid : true);
+            const isValid = isEntryValid && isVolumeValid;
 
             // Generate appropriate message
             let message = '';
@@ -70,7 +76,7 @@ export class TradeValidator {
             } else if (!isVolumeValid) {
                 message = `Trade is invalid: Volume is not high enough (${volumeAnalysis.color})`;
             } else {
-                message = `Trade is valid: Entry conditions met and volume is high (${volumeAnalysis.color})`;
+                message = `Trade is valid: Entry conditions met and volume is high (${volumeAnalysis.color}) ${trade.volume ? 'with volume flag' : 'without volume flag'}`;
             }
 
             return {

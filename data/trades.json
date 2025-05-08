@@ -1,3 +1,4 @@
 [
-  {"entry":99394, "stop":100000, "ls":"SHORT", "tp1":93000, "tp2": null, "tp3":null, "par":"BTCUSDT", "volume": false}
+  {"entry":100900, "stop":100000, "ls":"LONG", "tp1":110000, "tp2": null, "tp3":null, "par":"BTCUSDT", "volume": false},
+  {"entry":100000, "stop":100900, "ls":"SHORT", "tp1":90000, "tp2": null, "tp3":null, "par":"BTCUSDT", "volume": false}
 ] 
