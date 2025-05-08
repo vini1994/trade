@@ -1,4 +1,5 @@
 import { TradeValidator } from '../src/TradeValidator';
+import { VolumeColor } from '../src/VolumeAnalyzer';
 
 // Mock das dependências
 jest.mock('../src/TradeEntryAnalyzer', () => {
@@ -35,110 +36,167 @@ describe('TradeValidator', () => {
   });
 
   it('should return valid when both entry and volume are valid', async () => {
-    mockAnalyzeEntry.mockResolvedValue({
+    const mockEntryAnalysis = {
       canEnter: true,
       currentClose: 100,
-      hasPriceInRange: false,
+      hasClosePriceBeforeEntry: true,
       message: 'Entry ok'
-    });
-    mockAnalyzeVolume.mockResolvedValue({
-      color: 'blue',
+    };
+    const mockVolumeAnalysis = {
+      color: VolumeColor.YELLOW,
       stdBar: 5,
       mean: 10,
       std: 2,
       currentVolume: 20
-    });
+    };
+
+    mockAnalyzeEntry.mockResolvedValue(mockEntryAnalysis);
+    mockAnalyzeVolume.mockResolvedValue(mockVolumeAnalysis);
 
     const result = await validator.validateTrade({
       symbol: 'BTCUSDT',
       type: 'LONG',
       entry: 100,
-      stop: 90
+      stop: 90,
+      volume: true
     });
 
     expect(result.isValid).toBe(true);
     expect(result.message).toContain('Trade is valid');
+    expect(result.entryAnalysis).toEqual(mockEntryAnalysis);
+    expect(result.volumeAnalysis).toEqual(mockVolumeAnalysis);
   });
 
-  it('should return invalid when entry is invalid', async () => {
-    mockAnalyzeEntry.mockResolvedValue({
-      canEnter: false,
-      currentClose: 95,
-      hasPriceInRange: false,
-      message: 'Entry not met'
-    });
-    mockAnalyzeVolume.mockResolvedValue({
-      color: 'blue',
-      stdBar: 5,
+  it('should return valid when entry is valid and volume flag is false', async () => {
+    const mockEntryAnalysis = {
+      canEnter: true,
+      currentClose: 100,
+      hasClosePriceBeforeEntry: true,
+      message: 'Entry ok'
+    };
+    const mockVolumeAnalysis = {
+      color: VolumeColor.BLUE,
+      stdBar: -1,
       mean: 10,
       std: 2,
-      currentVolume: 20
-    });
+      currentVolume: 5
+    };
+
+    mockAnalyzeEntry.mockResolvedValue(mockEntryAnalysis);
+    mockAnalyzeVolume.mockResolvedValue(mockVolumeAnalysis);
 
     const result = await validator.validateTrade({
       symbol: 'BTCUSDT',
       type: 'LONG',
       entry: 100,
-      stop: 90
+      stop: 90,
+      volume: false
+    });
+
+    expect(result.isValid).toBe(true);
+    expect(result.message).toContain('Trade is valid');
+    expect(result.message).toContain('without volume flag');
+    expect(result.entryAnalysis).toEqual(mockEntryAnalysis);
+    expect(result.volumeAnalysis).toEqual(mockVolumeAnalysis);
+  });
+
+  it('should return invalid when entry is invalid', async () => {
+    const mockEntryAnalysis = {
+      canEnter: false,
+      currentClose: 95,
+      hasClosePriceBeforeEntry: false,
+      message: 'Entry not met'
+    };
+    const mockVolumeAnalysis = {
+      color: VolumeColor.YELLOW,
+      stdBar: 5,
+      mean: 10,
+      std: 2,
+      currentVolume: 20
+    };
+
+    mockAnalyzeEntry.mockResolvedValue(mockEntryAnalysis);
+    mockAnalyzeVolume.mockResolvedValue(mockVolumeAnalysis);
+
+    const result = await validator.validateTrade({
+      symbol: 'BTCUSDT',
+      type: 'LONG',
+      entry: 100,
+      stop: 90,
+      volume: true
     });
 
     expect(result.isValid).toBe(false);
     expect(result.message).toContain('Trade is invalid');
     expect(result.message).toContain('Entry not met');
+    expect(result.entryAnalysis).toEqual(mockEntryAnalysis);
+    expect(result.volumeAnalysis).toEqual(mockVolumeAnalysis);
   });
 
-  it('should return invalid when volume is invalid', async () => {
-    mockAnalyzeEntry.mockResolvedValue({
+  it('should return invalid when volume is invalid and volume flag is true', async () => {
+    const mockEntryAnalysis = {
       canEnter: true,
       currentClose: 100,
-      hasPriceInRange: false,
+      hasClosePriceBeforeEntry: true,
       message: 'Entry ok'
-    });
-    mockAnalyzeVolume.mockResolvedValue({
-      color: 'red',
+    };
+    const mockVolumeAnalysis = {
+      color: VolumeColor.BLUE,
       stdBar: -1,
       mean: 10,
       std: 2,
       currentVolume: 5
-    });
+    };
+
+    mockAnalyzeEntry.mockResolvedValue(mockEntryAnalysis);
+    mockAnalyzeVolume.mockResolvedValue(mockVolumeAnalysis);
 
     const result = await validator.validateTrade({
       symbol: 'BTCUSDT',
       type: 'LONG',
       entry: 100,
-      stop: 90
+      stop: 90,
+      volume: true
     });
 
     expect(result.isValid).toBe(false);
     expect(result.message).toContain('Trade is invalid');
     expect(result.message).toContain('Volume is not high enough');
+    expect(result.entryAnalysis).toEqual(mockEntryAnalysis);
+    expect(result.volumeAnalysis).toEqual(mockVolumeAnalysis);
   });
 
   it('should return invalid when both entry and volume are invalid', async () => {
-    mockAnalyzeEntry.mockResolvedValue({
+    const mockEntryAnalysis = {
       canEnter: false,
       currentClose: 95,
-      hasPriceInRange: false,
+      hasClosePriceBeforeEntry: false,
       message: 'Entry not met'
-    });
-    mockAnalyzeVolume.mockResolvedValue({
-      color: 'red',
+    };
+    const mockVolumeAnalysis = {
+      color: VolumeColor.BLUE,
       stdBar: -1,
       mean: 10,
       std: 2,
       currentVolume: 5
-    });
+    };
+
+    mockAnalyzeEntry.mockResolvedValue(mockEntryAnalysis);
+    mockAnalyzeVolume.mockResolvedValue(mockVolumeAnalysis);
 
     const result = await validator.validateTrade({
       symbol: 'BTCUSDT',
       type: 'LONG',
       entry: 100,
-      stop: 90
+      stop: 90,
+      volume: true
     });
 
     expect(result.isValid).toBe(false);
     expect(result.message).toContain('Trade is invalid');
     expect(result.message).toContain('Entry not met');
     expect(result.message).toContain('volume is not high enough');
+    expect(result.entryAnalysis).toEqual(mockEntryAnalysis);
+    expect(result.volumeAnalysis).toEqual(mockVolumeAnalysis);
   });
 }); 
