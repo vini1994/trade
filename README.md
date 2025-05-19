@@ -1,10 +1,10 @@
 # Trade NB Members
 
-A TypeScript-based trading automation system that integrates with multiple cryptocurrency exchanges (Binance and BingX) to analyze and execute trades based on various market conditions and strategies.
+A TypeScript-based trading automation system that integrates with multiple cryptocurrency exchanges (Binance and BingX) to analyze and execute trades(BingX only) based on various market conditions and strategies.
 
 ## Features
 
-- Multi-exchange support (Binance and BingX)
+- Multi-exchange support analyze (Binance and BingX) 
 - Automated trade analysis and execution
 - Volume analysis and position validation
 - Real-time order status monitoring
@@ -37,8 +37,6 @@ pnpm install
 
 3. Create a `.env` file in the root directory with your API credentials:
 ```env
-BINANCE_API_KEY=your_binance_api_key
-BINANCE_API_SECRET=your_binance_api_secret
 BINGX_API_KEY=your_bingx_api_key
 BINGX_API_SECRET=your_bingx_api_secret
 ```
@@ -95,7 +93,7 @@ pnpm test
 
 - **Data Services**: Integration with Binance and BingX exchanges
 - **Trade Analysis**: Volume analysis, position validation, and entry point analysis
-- **Order Processing**: Automated order execution and status monitoring
+- **Order Processing**: Automated order execution and status monitoring (BingX only)
 - **Database**: SQLite-based storage for trade history and market data
 - **Scheduling**: Cron jobs for automated trading tasks
 
