@@ -199,11 +199,11 @@ export class BingXOrderExecutor {
         }
     }
 
-    private async placeOrder(
+    public async placeOrder(
         symbol: string,
         side: 'BUY' | 'SELL',
         positionSide: 'LONG' | 'SHORT',
-        type: 'MARKET' | 'LIMIT' | 'TRIGGER_LIMIT',
+        type: 'MARKET' | 'LIMIT' | 'STOP_MARKET' | 'TRIGGER_LIMIT',
         price: number,
         stopPrice: number,
         quantity: number
@@ -215,7 +215,7 @@ export class BingXOrderExecutor {
             side: side,
             positionSide: positionSide,
             type: type,
-            price: type === 'MARKET' ? '' : price.toString(),
+            price: type === 'MARKET' || type === 'STOP_MARKET' ? '' : price.toString(),
             stopPrice: stopPrice.toString(),
             quantity: quantity.toString(),
             timestamp: timestamp.toString()
@@ -509,6 +509,31 @@ export class BingXOrderExecutor {
             };
         } catch (error) {
             console.error('Error executing trade:', error);
+            throw error;
+        }
+    }
+
+    public async cancelOrder(symbol: string, orderId: string): Promise<void> {
+        const timestamp = Date.now();
+        const path = '/openApi/swap/v2/trade/cancelOrder';
+        const params = {
+            symbol: symbol,
+            orderId: orderId,
+            timestamp: timestamp.toString()
+        };
+
+        const signature = this.generateSignature(timestamp, 'POST', path, params);
+
+        try {
+            await axios.post(`${this.baseUrl}${path}`, params, {
+                headers: {
+                    'X-BX-APIKEY': this.apiKey,
+                    'X-BX-SIGN': signature,
+                    'X-BX-TIMESTAMP': timestamp.toString()
+                }
+            });
+        } catch (error) {
+            console.error('Error canceling order:', error);
             throw error;
         }
     }

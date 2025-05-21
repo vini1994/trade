@@ -5,7 +5,7 @@ import * as dotenv from 'dotenv';
 // Load environment variables
 dotenv.config();
 
-interface Position {
+export interface Position {
     symbol: string;
     positionSide: 'LONG' | 'SHORT';
     positionAmt: string;
@@ -52,7 +52,7 @@ export class PositionValidator {
             .digest('hex');
     }
 
-    private async getPositions(symbol: string): Promise<Position[]> {
+    public async getPositions(symbol: string): Promise<Position[]> {
         const timestamp = Date.now();
         const path = '/openApi/swap/v2/user/positions';
         const params = {
