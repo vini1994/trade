@@ -14,6 +14,11 @@ A TypeScript-based trading automation system that integrates with multiple crypt
 - Console-based chart visualization
 - SQLite database for trade history and data persistence
 - Cron job scheduling for automated tasks
+- Modern web interface for trade management
+- RESTful API endpoints for trade operations
+- Real-time trade notifications
+- Trade history visualization
+- Responsive UI with modern CSS
 
 ## Prerequisites
 
@@ -47,12 +52,25 @@ BINGX_API_SECRET=your_bingx_api_secret
 
 ```
 ├── src/
-│   ├── utils/           # Utility functions
+│   ├── api/            # API endpoints and controllers
+│   │   ├── controllers/
+│   │   ├── routes/
+│   │   └── services/
+│   ├── frontend/       # Vue.js frontend application
+│   │   ├── src/
+│   │   │   ├── assets/
+│   │   │   │   └── styles/  # CSS styles
+│   │   │   ├── components/
+│   │   │   ├── router/
+│   │   │   └── views/
+│   │   └── index.html
+│   ├── utils/          # Utility functions
 │   ├── BingXDataService.ts
 │   ├── BinanceDataService.ts
 │   ├── ConsoleChartService.ts
 │   ├── DataServiceManager.ts
 │   ├── LeverageCalculator.ts
+│   ├── NotificationService.ts
 │   ├── OrderMonitor.ts
 │   ├── OrderStatusChecker.ts
 │   ├── PositionMonitor.ts
@@ -68,6 +86,7 @@ BINGX_API_SECRET=your_bingx_api_secret
 ├── tests/              # Test files
 ├── db/                 # Database files
 ├── data/              # Data storage
+├── vite.config.ts     # Vite configuration
 └── package.json
 ```
 
@@ -230,3 +249,91 @@ ISC
 - Always use environment variables for sensitive data
 - Keep your dependencies up to date
 - Review and validate all trade operations before execution 
+
+## Web Interface
+
+The system now includes a modern web interface built with Vue.js and modern CSS, providing an intuitive way to manage trades and monitor positions.
+
+### Features
+
+- **Trade Management**
+  - Create and submit new trades
+  - View and manage existing positions
+  - Real-time trade notifications
+  - Trade history visualization
+
+- **User Interface**
+  - Responsive design with modern CSS
+  - Clean and intuitive interface
+  - Real-time updates
+  - Interactive trade forms
+  - Position monitoring dashboard
+
+### Running the Frontend
+
+1. Development mode:
+```bash
+pnpm dev
+```
+
+2. Build for production:
+```bash
+pnpm build
+```
+
+## API Endpoints
+
+The system provides RESTful API endpoints for trade operations and monitoring:
+
+### Trade Management
+
+- `POST /api/trades` - Create a new trade
+- `GET /api/trades` - List all trades
+- `GET /api/trades/:id` - Get trade details
+- `PUT /api/trades/:id` - Update trade status
+- `DELETE /api/trades/:id` - Cancel a trade
+
+### Position Monitoring
+
+- `GET /api/positions` - List all open positions
+- `GET /api/positions/:id` - Get position details
+- `PUT /api/positions/:id/stop-loss` - Update stop-loss level
+
+### Notifications
+
+- `GET /api/notifications` - Get recent trade notifications
+- `POST /api/notifications/settings` - Update notification preferences
+
+### Example API Usage
+
+```typescript
+// Create a new trade
+const response = await fetch('/api/trades', {
+    method: 'POST',
+    headers: {
+        'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+        symbol: 'BTCUSDT',
+        type: 'LONG',
+        entry: 50000,
+        stop: 49000,
+        tp1: 52000
+    })
+});
+
+// Get open positions
+const positions = await fetch('/api/positions').then(res => res.json());
+```
+
+## Notification System
+
+The system includes a comprehensive notification service that provides real-time updates about trade events:
+
+- Trade entry and exit notifications
+- Stop-loss triggers
+- Position updates
+- System alerts
+- Custom notification preferences
+
+Notifications are delivered through the web interface and can be configured based on user preferences. 
