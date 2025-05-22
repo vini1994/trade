@@ -1,5 +1,6 @@
 <template>
   <div class="container mt-4">
+    <audio ref="alertSound" src="/api/alert" preload="auto"></audio>
     <div class="card">
       <div class="card-header d-flex justify-content-between align-items-center">
         <h5 class="mb-0">Trade Notifications</h5>
@@ -103,6 +104,8 @@ const connectionStatus = ref('Connecting...')
 const connectionStatusClass = ref('bg-warning')
 let ws: WebSocket | null = null
 
+const alertSound = ref<HTMLAudioElement | null>(null)
+
 const connectWebSocket = () => {
   const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
   const wsUrl = `${protocol}//localhost:3000`
@@ -117,8 +120,8 @@ const connectWebSocket = () => {
   ws.onclose = () => {
     connectionStatus.value = 'Disconnected'
     connectionStatusClass.value = 'bg-danger'
-    // Try to reconnect after 5 seconds
-    setTimeout(connectWebSocket, 5000)
+    // Try to reconnect after 30 seconds
+    setTimeout(connectWebSocket, 30000)
   }
 
   ws.onerror = (error) => {
@@ -132,6 +135,7 @@ const connectWebSocket = () => {
       console.log('Received trade notification:', event.data)
       const trade: Trade = JSON.parse(event.data)
       trades.value.unshift(trade) // Add new trade at the beginning
+      playAlertSound() // Play alert sound when receiving a trade
       
       // Keep only the last 50 trades
       if (trades.value.length > 50) {
@@ -140,6 +144,15 @@ const connectWebSocket = () => {
     } catch (error) {
       console.error('Error parsing trade notification:', error)
     }
+  }
+}
+
+const playAlertSound = () => {
+  if (alertSound.value) {
+    alertSound.value.currentTime = 0 // Reset the audio to start
+    alertSound.value.play().catch(error => {
+      console.error('Error playing alert sound:', error)
+    })
   }
 }
 

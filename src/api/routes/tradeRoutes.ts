@@ -1,8 +1,14 @@
 import { Router } from 'express';
 import { TradeController } from '../controllers/tradeController';
+import path from 'path';
 
 const router = Router();
 const tradeController = new TradeController();
+
+// Serve alert.mp3 file
+router.get('/alert', (req, res) => {
+    res.sendFile(path.join(__dirname, '../../../data/alert.mp3'));
+});
 
 router.get('/trades', (req, res) => tradeController.listTrades(req, res));
 router.get('/trades/:index', (req, res) => tradeController.getTrade(req, res));
