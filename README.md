@@ -8,6 +8,8 @@ A TypeScript-based trading automation system that integrates with multiple crypt
 - Automated trade analysis and execution
 - Volume analysis and position validation
 - Real-time order status monitoring
+- Real-time position monitoring with price updates
+- Automated stop-loss management
 - Leverage calculation and management
 - Console-based chart visualization
 - SQLite database for trade history and data persistence
@@ -51,7 +53,10 @@ BINGX_API_SECRET=your_bingx_api_secret
 │   ├── ConsoleChartService.ts
 │   ├── DataServiceManager.ts
 │   ├── LeverageCalculator.ts
+│   ├── OrderMonitor.ts
 │   ├── OrderStatusChecker.ts
+│   ├── PositionMonitor.ts
+│   ├── PositionMonitorCronJob.ts
 │   ├── PositionValidator.ts
 │   ├── TradeCronJob.ts
 │   ├── TradeDatabase.ts
@@ -94,8 +99,33 @@ pnpm test
 - **Data Services**: Integration with Binance and BingX exchanges
 - **Trade Analysis**: Volume analysis, position validation, and entry point analysis
 - **Order Processing**: Automated order execution and status monitoring (BingX only)
+- **Position Monitoring**: Real-time position tracking with price updates and stop-loss management
 - **Database**: SQLite-based storage for trade history and market data
 - **Scheduling**: Cron jobs for automated trading tasks
+
+## Position Monitoring System
+
+The system includes a comprehensive position monitoring solution that provides:
+
+- Real-time position tracking with price updates
+- Automated stop-loss order management
+- Periodic position status updates via cron job
+- WebSocket-based price monitoring
+- Detailed position logging and status reporting
+
+To use the position monitoring system:
+
+```typescript
+// Initialize and start the position monitor
+const positionMonitorCron = new PositionMonitorCronJob();
+await positionMonitorCron.start();
+
+// The monitor will automatically:
+// - Track all open positions
+// - Update prices in real-time
+// - Manage stop-loss orders
+// - Log position status every minute
+```
 
 ## Testing
 

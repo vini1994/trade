@@ -49,19 +49,70 @@ export class TradeEntryAnalyzer {
         return false;
     }
 
-    public async analyzeEntry(symbol: string, type: TradeType, entry: number, stop: number): Promise<{
+    private isWickRatioValid(candle: KlineData, type: TradeType): boolean {
+        const high = parseFloat(candle.high);
+        const low = parseFloat(candle.low);
+        const open = parseFloat(candle.open);
+        const close = parseFloat(candle.close);
+        
+        const totalCandleHeight = high - low;
+        const bodyHeight = Math.abs(close - open);
+        
+        if (type === 'LONG') {
+            const upperWick = high - Math.max(open, close);
+            const upperWickRatio = upperWick / totalCandleHeight;
+            return upperWickRatio <= 0.8;
+        } else {
+            const lowerWick = Math.min(open, close) - low;
+            const lowerWickRatio = lowerWick / totalCandleHeight;
+            return lowerWickRatio <= 0.8;
+        }
+    }
+
+    public async analyzeEntry(
+        symbol: string, 
+        type: TradeType, 
+        entry: number, 
+        stop: number,
+        tp1: number
+    ): Promise<{
         canEnter: boolean;
         currentClose: number;
         hasClosePriceBeforeEntry: boolean;
         message: string;
     }> {
         try {
+            // Calculate risk-reward ratio
+            const entryToStopDistance = Math.abs(entry - stop);
+            const entryToTP1Distance = Math.abs(entry - tp1);
+            const riskRewardRatio = entryToTP1Distance / entryToStopDistance;
+
+            // Validate risk-reward ratio
+            if (riskRewardRatio < 0.8) {
+                return {
+                    canEnter: false,
+                    currentClose: 0,
+                    hasClosePriceBeforeEntry: false,
+                    message: `Invalid risk-reward ratio. Distance to TP1 (${entryToTP1Distance}) is less than 80% of distance to stop (${entryToStopDistance})`
+                };
+            }
+
             // Get data from either Binance or BingX using DataServiceManager
             const { data: klineData, source } = await this.dataServiceManager.getKlineData(symbol);
             
             // Get the most recent close price
             const currentCandle = klineData[klineData.length - 2];
             const currentClose = parseFloat(currentCandle.close);
+            
+            // Check if wick ratio is valid
+            if (!this.isWickRatioValid(currentCandle, type)) {
+                return {
+                    canEnter: false,
+                    currentClose,
+                    hasClosePriceBeforeEntry: false,
+                    message: `Invalid candle wick ratio. ${type === 'LONG' ? 'Upper' : 'Lower'} wick is more than 80% of total candle height [${source}]`
+                };
+            }
             
             // Check if entry condition is met
             const entryConditionMet = this.isEntryConditionMet(currentCandle, entry, type);
