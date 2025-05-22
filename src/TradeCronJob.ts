@@ -6,6 +6,7 @@ import player from 'play-sound';
 import { DataServiceManager } from './DataServiceManager';
 import { KlineData } from './utils/types';
 import { ConsoleChartService } from './ConsoleChartService';
+import { NotificationService } from './NotificationService';
 
 
 interface Trade {
@@ -17,6 +18,7 @@ interface Trade {
     tp3: number;
     par: string;
     volume: boolean;
+    url_analysis: string;
 }
 
 const play = player();
@@ -26,12 +28,14 @@ export class TradeCronJob {
     private readonly tradeValidator: TradeValidator;
     private readonly dataServiceManager: DataServiceManager;
     private readonly consoleChartService: ConsoleChartService;
+    private readonly notificationService: NotificationService;
 
     constructor() {
         this.dataPath = path.join(__dirname, '../data/trades.json');
         this.tradeValidator = new TradeValidator();
         this.dataServiceManager = new DataServiceManager();
         this.consoleChartService = new ConsoleChartService();
+        this.notificationService = new NotificationService();
     }
 
     private readTrades(): Trade[] {
@@ -60,7 +64,8 @@ export class TradeCronJob {
                 type: trade.ls as 'LONG' | 'SHORT',
                 entry: trade.entry,
                 stop: trade.stop,
-                volume: trade.volume
+                volume: trade.volume,
+                tp1: trade.tp1
             });
 
             console.log(`\nTrade #${trades.indexOf(trade) + 1}:`);
@@ -77,6 +82,26 @@ export class TradeCronJob {
             console.log('----------------------------------------');
             const { data: klineData, source } = await this.dataServiceManager.getKlineData(trade.par);
             this.consoleChartService.drawChart(klineData, trade.par);
+
+                // Send notification for valid trade
+                try {
+                    await this.notificationService.sendTradeNotification({
+                        symbol: trade.par,
+                        type: trade.ls as 'LONG' | 'SHORT',
+                        entry: trade.entry,
+                        stop: trade.stop,
+                        takeProfits: {
+                            tp1: trade.tp1,
+                            tp2: trade.tp2,
+                            tp3: trade.tp3
+                        },
+                        validation: validationResult,
+                        analysisUrl: trade.url_analysis
+                    });
+                } catch (error) {
+                    console.error('Failed to send trade notification:', error);
+                }
+
 
             if (validationResult.isValid) {
                 validCount++;

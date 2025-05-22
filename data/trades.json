@@ -1,4 +1,24 @@
 [
-  {"entry":100900, "stop":100000, "ls":"LONG", "tp1":110000, "tp2": null, "tp3":null, "par":"BTCUSDT", "volume": false},
-  {"entry":100000, "stop":100900, "ls":"SHORT", "tp1":90000, "tp2": null, "tp3":null, "par":"BTCUSDT", "volume": false}
-] 
+  {
+    "entry": 0.5085,
+    "stop": 0.4285,
+    "ls": "LONG",
+    "tp1": 0.5899,
+    "tp2": null,
+    "tp3": null,
+    "par": "UXLINKUSDT",
+    "volume": false,
+    "url_analysis": "https://www.tradingview.com/x/rZpeFA4Q/"
+  },
+  {
+    "entry": 0.3992,
+    "stop": 0.4847,
+    "ls": "SHORT",
+    "tp1": 0.3085,
+    "tp2": null,
+    "tp3": null,
+    "par": "UXLINKUSDT",
+    "volume": false,
+    "url_analysis": "https://www.tradingview.com/x/rZpeFA4Q/"
+  }
+]

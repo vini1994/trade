@@ -8,6 +8,7 @@ interface Trade {
     entry: number;
     stop: number;
     volume: boolean;
+    tp1: number;
 }
 
 export class TradeValidator {
@@ -49,7 +50,8 @@ export class TradeValidator {
                     trade.symbol,
                     trade.type,
                     trade.entry,
-                    trade.stop
+                    trade.stop,
+                    trade.tp1
                 ),
                 this.volumeAnalyzer.analyzeVolume(trade.symbol)
             ]);

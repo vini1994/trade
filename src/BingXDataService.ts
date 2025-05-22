@@ -112,21 +112,30 @@ export class BingXDataService {
         };
     }
 
+    private normalizeSymbol(symbol: string): string {
+        const upperSymbol = symbol.toUpperCase();
+        if (!upperSymbol.endsWith('-USDT')) {
+            return upperSymbol.replace('USDT', '') + '-USDT';
+        }
+        return upperSymbol;
+    }
+
     public async getKlineData(symbol: string): Promise<KlineData[]> {
+        const normalizedSymbol = this.normalizeSymbol(symbol);
         const timeComponents = this.getCurrentTimeComponents();
         
         // Check cache first
-        const cachedData = await this.getCachedData(symbol, timeComponents);
+        const cachedData = await this.getCachedData(normalizedSymbol, timeComponents);
         if (cachedData) {
-            console.log(`Returning cached data for ${symbol} at ${timeComponents.hour}:00 on ${timeComponents.day}/${timeComponents.month}/${timeComponents.year}`);
+            console.log(`Returning cached data for ${normalizedSymbol} at ${timeComponents.hour}:00 on ${timeComponents.day}/${timeComponents.month}/${timeComponents.year}`);
             return cachedData;
         }
 
         try {
             const timestamp = Date.now();
-            const path = '/openApi/swap/v2/quote/klines';
+            const path = '/openApi/swap/v3/quote/klines';
             const params = {
-                symbol: symbol,
+                symbol: normalizedSymbol,
                 interval: '1h',
                 limit: 56,
                 timestamp: timestamp.toString()
@@ -146,22 +155,23 @@ export class BingXDataService {
             const klineData = response.data.data.map(this.parseKlineData);
             
             // Cache the data
-            await this.cacheData(symbol, timeComponents, klineData);
+            await this.cacheData(normalizedSymbol, timeComponents, klineData);
             
-            console.log(`Fetched and cached new data for ${symbol} at ${timeComponents.hour}:00 on ${timeComponents.day}/${timeComponents.month}/${timeComponents.year}`);
+            console.log(`Fetched and cached new data for ${normalizedSymbol} at ${timeComponents.hour}:00 on ${timeComponents.day}/${timeComponents.month}/${timeComponents.year}`);
             return klineData;
         } catch (error) {
-            console.error(`Error fetching data for ${symbol}:`, error);
+            console.error(`Error fetching data for ${normalizedSymbol}:`, error);
             throw error;
         }
     }
 
     public async getSymbolPrice(symbol: string): Promise<number> {
+        const normalizedSymbol = this.normalizeSymbol(symbol);
         try {
             const timestamp = Date.now();
             const path = '/openApi/swap/v2/quote/ticker';
             const params = {
-                symbol: symbol,
+                symbol: normalizedSymbol,
                 timestamp: timestamp.toString()
             };
 
@@ -178,7 +188,7 @@ export class BingXDataService {
 
             return parseFloat(response.data.data.lastPrice);
         } catch (error) {
-            console.error(`Error fetching price for ${symbol}:`, error);
+            console.error(`Error fetching price for ${normalizedSymbol}:`, error);
             throw error;
         }
     }
@@ -189,11 +199,12 @@ export class BingXDataService {
         maxPositionValue: number;
         minPositionValue: number;
     }> {
+        const normalizedSymbol = this.normalizeSymbol(symbol);
         try {
             const timestamp = Date.now();
             const path = '/openApi/swap/v2/quote/contract';
             const params = {
-                symbol: symbol,
+                symbol: normalizedSymbol,
                 timestamp: timestamp.toString()
             };
 
@@ -210,7 +221,7 @@ export class BingXDataService {
 
             return response.data.data;
         } catch (error) {
-            console.error(`Error fetching symbol info for ${symbol}:`, error);
+            console.error(`Error fetching symbol info for ${normalizedSymbol}:`, error);
             throw error;
         }
     }
