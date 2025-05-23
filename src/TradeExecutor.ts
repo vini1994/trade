@@ -57,10 +57,25 @@ export class TradeExecutor {
 
         // Validate take profit levels
         if (trade.type === 'LONG') {
-            if (trade.tp1 <= trade.entry || trade.tp2 <= trade.tp1 || trade.tp3 <= trade.tp2) {
+            // Only validate tp1 if it has a value
+            if (trade.tp1 > 0 && trade.tp1 <= trade.entry) {
                 return {
                     isValid: false,
-                    message: 'Invalid take profit levels for LONG trade'
+                    message: 'Invalid take profit level 1 for LONG trade'
+                };
+            }
+            // Only validate tp2 if both tp1 and tp2 have values
+            if (trade.tp1 > 0 && trade.tp2 > 0 && trade.tp2 <= trade.tp1) {
+                return {
+                    isValid: false,
+                    message: 'Invalid take profit level 2 for LONG trade'
+                };
+            }
+            // Only validate tp3 if both tp2 and tp3 have values
+            if (trade.tp2 > 0 && trade.tp3 > 0 && trade.tp3 <= trade.tp2) {
+                return {
+                    isValid: false,
+                    message: 'Invalid take profit level 3 for LONG trade'
                 };
             }
             if (trade.stop >= trade.entry) {
@@ -70,10 +85,25 @@ export class TradeExecutor {
                 };
             }
         } else {
-            if (trade.tp1 >= trade.entry || trade.tp2 >= trade.tp1 || trade.tp3 >= trade.tp2) {
+            // Only validate tp1 if it has a value
+            if (trade.tp1 > 0 && trade.tp1 >= trade.entry) {
                 return {
                     isValid: false,
-                    message: 'Invalid take profit levels for SHORT trade'
+                    message: 'Invalid take profit level 1 for SHORT trade'
+                };
+            }
+            // Only validate tp2 if both tp1 and tp2 have values
+            if (trade.tp1 > 0 && trade.tp2 > 0 && trade.tp2 >= trade.tp1) {
+                return {
+                    isValid: false,
+                    message: 'Invalid take profit level 2 for SHORT trade'
+                };
+            }
+            // Only validate tp3 if both tp2 and tp3 have values
+            if (trade.tp2 > 0 && trade.tp3 > 0 && trade.tp3 >= trade.tp2) {
+                return {
+                    isValid: false,
+                    message: 'Invalid take profit level 3 for SHORT trade'
                 };
             }
             if (trade.stop <= trade.entry) {
