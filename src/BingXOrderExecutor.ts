@@ -128,12 +128,13 @@ export class BingXOrderExecutor {
         return Math.min(Math.floor(safeMaxLeverage), maxLeverage);
     }
 
-    private async setLeverage(symbol: string, leverage: number): Promise<void> {
+    private async setLeverage(symbol: string, leverage: number, side: 'LONG' | 'SHORT'): Promise<void> {
         const timestamp = Date.now();
         const path = '/openApi/swap/v2/trade/leverage';
         const params = {
             symbol: symbol,
             leverage: leverage.toString(),
+            side: side,
             timestamp: timestamp.toString()
         };
 
@@ -199,7 +200,7 @@ export class BingXOrderExecutor {
         }
     }
 
-    public async placeOrder(
+    private async placeOrder(
         symbol: string,
         side: 'BUY' | 'SELL',
         positionSide: 'LONG' | 'SHORT',
@@ -450,13 +451,18 @@ export class BingXOrderExecutor {
             const leverageInfo = await this.leverageCalculator.calculateOptimalLeverage(
                 trade.symbol,
                 trade.entry,
-                trade.stop
+                trade.stop,
+                trade.type
             );
             
             console.log(`Calculated leverage info:`, leverageInfo);
             
             // Set leverage
-            await this.leverageCalculator.setLeverage(trade.symbol, leverageInfo.optimalLeverage);
+            await this.leverageCalculator.setLeverage(
+                trade.symbol, 
+                leverageInfo.optimalLeverage,
+                trade.type
+            );
 
             // Calculate position quantity based on margin and leverage
             const quantity = await this.calculatePositionQuantity(trade.symbol, leverageInfo.optimalLeverage);

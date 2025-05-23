@@ -10,8 +10,14 @@ interface BingXSymbolInfo {
     msg: string;
     data: {
         symbol: string;
-        maxLeverage: number;
-        minLeverage: number;
+        longLeverage: number;
+        shortLeverage: number;
+        maxLongLeverage: number;
+        maxShortLeverage: number;
+        availableLongVol: number;
+        availableShortVol: number;
+        availableLongVal: number;
+        availableShortVal: number;
         maxPositionValue: number;
         minPositionValue: number;
     };
@@ -50,7 +56,7 @@ export class LeverageCalculator {
 
     private async getSymbolInfo(symbol: string): Promise<BingXSymbolInfo> {
         const timestamp = Date.now();
-        const path = '/openApi/swap/v2/quote/contract';
+        const path = '/openApi/swap/v2/trade/leverage';
         const params = {
             symbol: symbol,
             timestamp: timestamp.toString()
@@ -81,10 +87,10 @@ export class LeverageCalculator {
         
         // Calculate the theoretical maximum leverage based on stop loss
         // We use 100% as the maximum loss we're willing to take
-        return 1 / stopLossPercentage;
+        return Math.floor(1 / stopLossPercentage); // Ensure integer leverage
     }
 
-    public async calculateOptimalLeverage(symbol: string, entry: number, stop: number): Promise<{
+    public async calculateOptimalLeverage(symbol: string, entry: number, stop: number, side: 'LONG' | 'SHORT'): Promise<{
         optimalLeverage: number;
         theoreticalMaxLeverage: number;
         exchangeMaxLeverage: number;
@@ -93,16 +99,16 @@ export class LeverageCalculator {
         try {
             // Get symbol info to get max leverage
             const symbolInfo = await this.getSymbolInfo(symbol);
-            const exchangeMaxLeverage = symbolInfo.data.maxLeverage;
+            const exchangeMaxLeverage = Math.floor(side === 'LONG' ? symbolInfo.data.maxLongLeverage : symbolInfo.data.maxShortLeverage);
             
             // Calculate theoretical max leverage
             const theoreticalMaxLeverage = this.calculateTheoreticalMaxLeverage(entry, stop);
             
-            // Apply safety margin
-            const safeMaxLeverage = theoreticalMaxLeverage * this.safetyMargin;
+            // Apply safety margin and ensure integer
+            const safeMaxLeverage = Math.floor(theoreticalMaxLeverage * this.safetyMargin);
             
-            // Calculate optimal leverage
-            const optimalLeverage = Math.min(Math.floor(safeMaxLeverage), exchangeMaxLeverage);
+            // Calculate optimal leverage (already integer from Math.floor)
+            const optimalLeverage = Math.min(safeMaxLeverage, exchangeMaxLeverage);
             
             // Calculate stop loss percentage for reference
             const stopLossPercentage = Math.abs((stop - entry) / entry) * 100;
@@ -119,28 +125,44 @@ export class LeverageCalculator {
         }
     }
 
-    public async setLeverage(symbol: string, leverage: number): Promise<void> {
-        const timestamp = Date.now();
-        const path = '/openApi/swap/v2/trade/leverage';
-        const params = {
-            symbol: symbol,
-            leverage: leverage.toString(),
-            timestamp: timestamp.toString()
-        };
+    private async getCurrentLeverage(symbol: string, side: 'LONG' | 'SHORT'): Promise<number> {
+        const symbolInfo = await this.getSymbolInfo(symbol);
+        return side === 'LONG' ? symbolInfo.data.longLeverage : symbolInfo.data.shortLeverage;
+    }
 
-        const signature = this.generateSignature(timestamp, 'POST', path, params);
+    public async setLeverage(symbol: string, leverage: number, side: 'LONG' | 'SHORT'): Promise<boolean> {
+        // Ensure leverage is an integer
+        const targetLeverage = Math.floor(leverage);
+        const currentLeverage = Math.floor(await this.getCurrentLeverage(symbol, side));
+        
+        // Since we're dealing with integers, we can use exact comparison
+        if (currentLeverage !== targetLeverage) {
+            const timestamp = Date.now();
+            const path = '/openApi/swap/v2/trade/leverage';
+            const params = {
+                symbol: symbol,
+                leverage: targetLeverage.toString(),
+                side: side,
+                timestamp: timestamp.toString()
+            };
 
-        try {
-            await axios.post(`${this.baseUrl}${path}`, params, {
-                headers: {
-                    'X-BX-APIKEY': this.apiKey,
-                    'X-BX-SIGN': signature,
-                    'X-BX-TIMESTAMP': timestamp.toString()
-                }
-            });
-        } catch (error) {
-            console.error('Error setting leverage:', error);
-            throw error;
+            const signature = this.generateSignature(timestamp, 'POST', path, params);
+
+            try {
+                await axios.post(`${this.baseUrl}${path}`, params, {
+                    headers: {
+                        'X-BX-APIKEY': this.apiKey,
+                        'X-BX-SIGN': signature,
+                        'X-BX-TIMESTAMP': timestamp.toString()
+                    }
+                });
+                return true; // Leverage was changed
+            } catch (error) {
+                console.error('Error setting leverage:', error);
+                throw error;
+            }
         }
+        
+        return false; // Leverage was not changed
     }
 } 

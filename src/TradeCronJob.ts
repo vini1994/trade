@@ -2,9 +2,7 @@ import * as cron from 'node-cron';
 import * as fs from 'fs';
 import * as path from 'path';
 import { TradeValidator } from './TradeValidator';
-import player from 'play-sound';
 import { DataServiceManager } from './DataServiceManager';
-import { KlineData } from './utils/types';
 import { ConsoleChartService } from './ConsoleChartService';
 import { NotificationService } from './NotificationService';
 
@@ -21,7 +19,6 @@ interface Trade {
     url_analysis: string;
 }
 
-const play = player();
 
 export class TradeCronJob {
     private readonly dataPath: string;
@@ -48,7 +45,7 @@ export class TradeCronJob {
         }
     }
 
-    private async displayTrades(trades: Trade[]): Promise<void> {
+    private async processAndDisplayTrades(trades: Trade[]): Promise<void> {
         console.log('\n=== Trades at', new Date().toLocaleString(), '===');
 
         let validCount = 0;
@@ -80,8 +77,13 @@ export class TradeCronJob {
             console.log(`Volume Analysis: ${validationResult.volumeAnalysis.color} (StdBar: ${validationResult.volumeAnalysis.stdBar.toFixed(2)})`);
             console.log(`Current Close: ${validationResult.entryAnalysis.currentClose}`);
             console.log('----------------------------------------');
-            const { data: klineData, source } = await this.dataServiceManager.getKlineData(trade.par);
-            this.consoleChartService.drawChart(klineData, trade.par);
+
+            if (validationResult.isValid) {
+                validCount++;
+
+                const { data: klineData, source } = await this.dataServiceManager.getKlineData(trade.par);
+                this.consoleChartService.drawChart(klineData, trade.par);
+
 
                 // Send notification for valid trade
                 try {
@@ -103,13 +105,6 @@ export class TradeCronJob {
                 }
 
 
-            if (validationResult.isValid) {
-                validCount++;
-
-                // Play alert.mp3
-                play.play(path.join(__dirname, '../data/alert.mp3'), (err: any) => {
-                    if (err) console.error('Error playing sound:', err);
-                });
             }
         }
 
@@ -122,12 +117,11 @@ export class TradeCronJob {
 
     public execute(): void {
         // Schedule the job to run at minute 2 of every hour
-        //cron.schedule('2 * * * *', async () => {
+        //cron.schedule('1 * * * *', async () => {
         cron.schedule('* * * * *', async () => {
             const trades = this.readTrades();
-            await this.displayTrades(trades);
+            await this.processAndDisplayTrades(trades);
             
-
         });
 
         console.log('Trade cron job started. Will run at minute 2 of every hour.');
