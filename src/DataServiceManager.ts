@@ -15,16 +15,25 @@ export class DataServiceManager {
         try {
             console.log(`Attempting to fetch data from Binance for ${symbol}...`);
             const binanceData = await this.binanceService.getKlineData(symbol);
+    
+            // Sort by close time in descending order (most recent first)
+            const sortedData = [...binanceData].sort((a, b) => b.closeTime - a.closeTime);
+
             console.log('Successfully fetched data from Binance');
-            return { data: binanceData, source: 'binance' };
+            return { data: sortedData, source: 'binance' };
         } catch (error: any) {
             console.log(`Failed to fetch data from Binance: ${error.message}`);
             console.log(`Attempting to fetch data from BingX for ${symbol}...`);
             
             try {
                 const bingxData = await this.bingxService.getKlineData(symbol);
+        
+                // Sort by close time in descending order (most recent first)
+                const sortedData = [...bingxData].sort((a, b) => b.closeTime - a.closeTime);
+
+
                 console.log('Successfully fetched data from BingX');
-                return { data: bingxData, source: 'bingx' };
+                return { data: sortedData, source: 'bingx' };
             } catch (bingxError: any) {
                 console.error(`Failed to fetch data from both services for ${symbol}`);
                 console.error('Binance error:', error);

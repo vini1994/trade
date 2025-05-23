@@ -101,7 +101,7 @@ export class TradeEntryAnalyzer {
             const { data: klineData, source } = await this.dataServiceManager.getKlineData(symbol);
             
             // Get the most recent close price
-            const currentCandle = klineData[klineData.length - 2];
+            const currentCandle = klineData[1];
             const currentClose = parseFloat(currentCandle.close);
             
             // Check if wick ratio is valid
