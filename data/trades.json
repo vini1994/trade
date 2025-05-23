@@ -33,24 +33,13 @@
     "url_analysis": "https://br.tradingview.com/chart/qNmjxXtq/"
   },
   {
-    "entry": 2.3421,
+    "entry": 2.3216,
     "stop": 2.3822,
     "ls": "SHORT",
-    "tp1": 2.2807,
+    "tp1": 2.2611,
     "tp2": null,
     "tp3": null,
     "par": "XRPUSDT",
-    "volume": false,
-    "url_analysis": "https://br.tradingview.com/chart/qNmjxXtq/"
-  },
-  {
-    "entry": 0.00954,
-    "stop": 0.0111,
-    "ls": "SHORT",
-    "tp1": 0.00807,
-    "tp2": null,
-    "tp3": null,
-    "par": "EPTUSDT",
     "volume": false,
     "url_analysis": "https://br.tradingview.com/chart/qNmjxXtq/"
   }

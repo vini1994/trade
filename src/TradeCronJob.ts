@@ -129,7 +129,8 @@ export class TradeCronJob {
                             quantity: executionResult.data.quantity,
                             entryOrderId: executionResult.data.entryOrder.data.orderId,
                             stopOrderId: executionResult.data.stopOrder.data.orderId
-                        } : undefined
+                        } : undefined,
+                        executionError: !executionResult.success ? executionResult.message : undefined
                     });
                 } catch (error) {
                     console.error('Failed to execute trade:', error);
@@ -146,7 +147,7 @@ export class TradeCronJob {
                         },
                         validation: validationResult,
                         analysisUrl: trade.url_analysis,
-                        executionError: error instanceof Error ? error.message : 'Unknown error during execution'
+                        executionError: error instanceof Error ? error.message : undefined
                     });
                 }
             }
