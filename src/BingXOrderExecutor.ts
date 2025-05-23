@@ -35,17 +35,7 @@ interface BingXOrderResponse {
     };
 }
 
-interface BingXSymbolInfo {
-    code: number;
-    msg: string;
-    data: {
-        symbol: string;
-        maxLeverage: number;
-        minLeverage: number;
-        maxPositionValue: number;
-        minPositionValue: number;
-    };
-}
+
 
 export class BingXOrderExecutor {
     private readonly apiKey: string;
@@ -84,74 +74,6 @@ export class BingXOrderExecutor {
             .createHmac('sha256', this.apiSecret)
             .update(signatureString)
             .digest('hex');
-    }
-
-    private async getSymbolInfo(symbol: string): Promise<BingXSymbolInfo> {
-        const timestamp = Date.now();
-        const path = '/openApi/swap/v2/quote/contract';
-        const params = {
-            symbol: symbol,
-            timestamp: timestamp.toString()
-        };
-
-        const signature = this.generateSignature(timestamp, 'GET', path, params);
-
-        try {
-            const response = await axios.get(`${this.baseUrl}${path}`, {
-                params,
-                headers: {
-                    'X-BX-APIKEY': this.apiKey,
-                    'X-BX-SIGN': signature,
-                    'X-BX-TIMESTAMP': timestamp.toString()
-                }
-            });
-
-            return response.data;
-        } catch (error) {
-            console.error('Error fetching symbol info:', error);
-            throw error;
-        }
-    }
-
-    private calculateMaxLeverage(entry: number, stop: number, maxLeverage: number): number {
-        // Calculate the percentage difference between entry and stop
-        const stopLossPercentage = Math.abs((stop - entry) / entry);
-        
-        // Calculate the theoretical maximum leverage based on stop loss
-        // We use 100% as the maximum loss we're willing to take
-        const theoreticalMaxLeverage = 1 / stopLossPercentage;
-        
-        // Apply safety margin (70% of theoretical max)
-        const safeMaxLeverage = theoreticalMaxLeverage * 0.7;
-        
-        // Return the minimum between safe max leverage and exchange max leverage
-        return Math.min(Math.floor(safeMaxLeverage), maxLeverage);
-    }
-
-    private async setLeverage(symbol: string, leverage: number, side: 'LONG' | 'SHORT'): Promise<void> {
-        const timestamp = Date.now();
-        const path = '/openApi/swap/v2/trade/leverage';
-        const params = {
-            symbol: symbol,
-            leverage: leverage.toString(),
-            side: side,
-            timestamp: timestamp.toString()
-        };
-
-        const signature = this.generateSignature(timestamp, 'POST', path, params);
-
-        try {
-            await axios.post(`${this.baseUrl}${path}`, params, {
-                headers: {
-                    'X-BX-APIKEY': this.apiKey,
-                    'X-BX-SIGN': signature,
-                    'X-BX-TIMESTAMP': timestamp.toString()
-                }
-            });
-        } catch (error) {
-            console.error('Error setting leverage:', error);
-            throw error;
-        }
     }
 
     private async getSymbolPrice(symbol: string): Promise<number> {

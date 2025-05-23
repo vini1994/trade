@@ -9,13 +9,13 @@ export class TradeOrderProcessor {
     private readonly tradeDatabase: TradeDatabase;
     private readonly orderStatusChecker: OrderStatusChecker;
     private readonly limitOrderFee: number;
-    private readonly makerOrderFee: number;
+    private readonly marketOrderFee: number;
 
     constructor() {
         this.tradeDatabase = new TradeDatabase();
         this.orderStatusChecker = new OrderStatusChecker();
         this.limitOrderFee = parseFloat(process.env.BINGX_LIMIT_ORDER_FEE || '0.0002');
-        this.makerOrderFee = parseFloat(process.env.BINGX_MAKER_ORDER_FEE || '0.0001');
+        this.marketOrderFee = parseFloat(process.env.BINGX_MARKET_ORDER_FEE || '0.0005');
     }
 
     public async processTrades(): Promise<void> {
@@ -81,7 +81,7 @@ export class TradeOrderProcessor {
                 if (details.isFilled) {
                     // Determine fee type based on order type
                     feeType = status.type === 'LIMIT' ? 'LIMIT' : 'MAKER';
-                    const feeRate = feeType === 'LIMIT' ? this.limitOrderFee : this.makerOrderFee;
+                    const feeRate = feeType === 'LIMIT' ? this.limitOrderFee : this.marketOrderFee;
 
                     // Calculate fee with leverage
                     const orderValue = details.executionDetails.executedQuantity * details.executionDetails.averagePrice;

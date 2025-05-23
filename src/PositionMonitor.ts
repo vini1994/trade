@@ -30,7 +30,7 @@ export class PositionMonitor {
     private monitoredPositions: Map<string, MonitoredPosition> = new Map();
     private onPriceUpdate?: (position: MonitoredPosition) => void;
     private readonly limitOrderFee: number;
-    private readonly makerOrderFee: number;
+    private readonly marketOrderFee: number;
 
     constructor(onPriceUpdate?: (position: MonitoredPosition) => void) {
         this.positionValidator = new PositionValidator();
@@ -39,7 +39,7 @@ export class PositionMonitor {
         this.orderExecutor = new BingXOrderExecutor();
         this.onPriceUpdate = onPriceUpdate;
         this.limitOrderFee = parseFloat(process.env.BINGX_LIMIT_ORDER_FEE || '0.0002');
-        this.makerOrderFee = parseFloat(process.env.BINGX_MAKER_ORDER_FEE || '0.0001');
+        this.marketOrderFee = parseFloat(process.env.BINGX_MARKET_ORDER_FEE || '0.0005');
     }
 
     private getPositionKey(symbol: string, positionSide: 'LONG' | 'SHORT'): string {
