@@ -44,6 +44,44 @@
                     <small class="text-muted">Volume: {{ trade.validation.volumeAnalysis.currentVolume.toFixed(2) }} (std: {{ trade.validation.volumeAnalysis.stdBar.toFixed(2) }})</small>
                   </div>
                 </div>
+
+                <!-- Execution Results Section -->
+                <div v-if="trade.executionResult" class="mt-2">
+                  <div class="card bg-light">
+                    <div class="card-body p-2">
+                      <h6 class="card-title mb-2">Execution Results</h6>
+                      <div class="d-flex flex-column gap-1">
+                        <div class="d-flex justify-content-between">
+                          <small>Leverage:</small>
+                          <small class="fw-bold">{{ trade.executionResult.leverage }}x</small>
+                        </div>
+                        <div class="d-flex justify-content-between">
+                          <small>Quantity:</small>
+                          <small class="fw-bold">{{ trade.executionResult.quantity.toFixed(4) }}</small>
+                        </div>
+                        <div class="d-flex justify-content-between">
+                          <small>Entry Order:</small>
+                          <small class="text-truncate" style="max-width: 150px;">{{ trade.executionResult.entryOrderId }}</small>
+                        </div>
+                        <div class="d-flex justify-content-between">
+                          <small>Stop Order:</small>
+                          <small class="text-truncate" style="max-width: 150px;">{{ trade.executionResult.stopOrderId }}</small>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Execution Error Section -->
+                <div v-if="trade.executionError" class="mt-2">
+                  <div class="alert alert-danger p-2 mb-0">
+                    <small class="d-flex align-items-center">
+                      <i class="bi bi-exclamation-triangle-fill me-1"></i>
+                      <span>Execution Error: {{ trade.executionError }}</span>
+                    </small>
+                  </div>
+                </div>
+
                 <div class="mt-2">
                   <a :href="trade.analysisUrl" target="_blank" class="btn btn-sm btn-outline-primary">
                     View Analysis
@@ -89,6 +127,13 @@ interface Validation {
   entryAnalysis: EntryAnalysis
 }
 
+interface ExecutionResult {
+  leverage: number;
+  quantity: number;
+  entryOrderId: string;
+  stopOrderId: string;
+}
+
 interface Trade {
   symbol: string
   type: 'LONG' | 'SHORT'
@@ -97,6 +142,8 @@ interface Trade {
   takeProfits: TakeProfits
   validation: Validation
   analysisUrl: string
+  executionResult?: ExecutionResult
+  executionError?: string
 }
 
 const trades = ref<Trade[]>([])
@@ -176,5 +223,42 @@ onUnmounted(() => {
 [data-bs-theme="dark"] .list-group-item {
   background-color: #343a40;
   border-color: #495057;
+}
+
+/* Execution Results Styles */
+.card.bg-light {
+  background-color: rgba(var(--bs-light-rgb), 0.1) !important;
+  border: 1px solid rgba(var(--bs-border-color-rgb), 0.2);
+}
+
+[data-bs-theme="dark"] .card.bg-light {
+  background-color: rgba(255, 255, 255, 0.05) !important;
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+.card-title {
+  font-size: 0.9rem;
+  color: var(--bs-secondary);
+  margin-bottom: 0.5rem;
+}
+
+.text-truncate {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.alert-danger {
+  background-color: rgba(var(--bs-danger-rgb), 0.1);
+  border-color: rgba(var(--bs-danger-rgb), 0.2);
+}
+
+[data-bs-theme="dark"] .alert-danger {
+  background-color: rgba(220, 53, 69, 0.2);
+  border-color: rgba(220, 53, 69, 0.3);
+}
+
+.bi-exclamation-triangle-fill {
+  color: var(--bs-danger);
 }
 </style> 

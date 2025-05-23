@@ -5,6 +5,7 @@ import { TradeValidator } from './TradeValidator';
 import { DataServiceManager } from './DataServiceManager';
 import { ConsoleChartService } from './ConsoleChartService';
 import { NotificationService } from './NotificationService';
+import { TradeExecutor } from './TradeExecutor';
 
 
 interface Trade {
@@ -26,6 +27,7 @@ export class TradeCronJob {
     private readonly dataServiceManager: DataServiceManager;
     private readonly consoleChartService: ConsoleChartService;
     private readonly notificationService: NotificationService;
+    private readonly tradeExecutor: TradeExecutor;
 
     constructor() {
         this.dataPath = path.join(__dirname, '../data/trades.json');
@@ -33,6 +35,7 @@ export class TradeCronJob {
         this.dataServiceManager = new DataServiceManager();
         this.consoleChartService = new ConsoleChartService();
         this.notificationService = new NotificationService();
+        this.tradeExecutor = new TradeExecutor();
     }
 
     private readTrades(): Trade[] {
@@ -84,9 +87,31 @@ export class TradeCronJob {
                 const { data: klineData, source } = await this.dataServiceManager.getKlineData(trade.par);
                 this.consoleChartService.drawChart(klineData, trade.par);
 
-
-                // Send notification for valid trade
+                // Execute the trade using TradeExecutor
                 try {
+                    const executionResult = await this.tradeExecutor.executeTrade({
+                        symbol: trade.par,
+                        type: trade.ls as 'LONG' | 'SHORT',
+                        entry: trade.entry,
+                        stop: trade.stop,
+                        tp1: trade.tp1,
+                        tp2: trade.tp2,
+                        tp3: trade.tp3
+                    });
+
+                    if (executionResult.success) {
+                        console.log('\nTrade Execution Results:');
+                        console.log(`Status: ${executionResult.message}`);
+                        console.log(`Leverage: ${executionResult.data?.leverage.optimalLeverage}x`);
+                        console.log(`Quantity: ${executionResult.data?.quantity}`);
+                        console.log('----------------------------------------');
+                    } else {
+                        console.error('\nTrade Execution Failed:');
+                        console.error(`Error: ${executionResult.message}`);
+                        console.log('----------------------------------------');
+                    }
+
+                    // Send notification for valid trade
                     await this.notificationService.sendTradeNotification({
                         symbol: trade.par,
                         type: trade.ls as 'LONG' | 'SHORT',
@@ -98,13 +123,32 @@ export class TradeCronJob {
                             tp3: trade.tp3
                         },
                         validation: validationResult,
-                        analysisUrl: trade.url_analysis
+                        analysisUrl: trade.url_analysis,
+                        executionResult: executionResult.success && executionResult.data ? {
+                            leverage: executionResult.data.leverage.optimalLeverage,
+                            quantity: executionResult.data.quantity,
+                            entryOrderId: executionResult.data.entryOrder.data.orderId,
+                            stopOrderId: executionResult.data.stopOrder.data.orderId
+                        } : undefined
                     });
                 } catch (error) {
-                    console.error('Failed to send trade notification:', error);
+                    console.error('Failed to execute trade:', error);
+                    // Send notification about execution failure
+                    await this.notificationService.sendTradeNotification({
+                        symbol: trade.par,
+                        type: trade.ls as 'LONG' | 'SHORT',
+                        entry: trade.entry,
+                        stop: trade.stop,
+                        takeProfits: {
+                            tp1: trade.tp1,
+                            tp2: trade.tp2,
+                            tp3: trade.tp3
+                        },
+                        validation: validationResult,
+                        analysisUrl: trade.url_analysis,
+                        executionError: error instanceof Error ? error.message : 'Unknown error during execution'
+                    });
                 }
-
-
             }
         }
 

@@ -22,6 +22,13 @@ interface TradeNotification {
         };
     };
     analysisUrl: string;
+    executionResult?: {
+        leverage: number;
+        quantity: number;
+        entryOrderId: string;
+        stopOrderId: string;
+    };
+    executionError?: string;
 }
 
 export class NotificationService {
