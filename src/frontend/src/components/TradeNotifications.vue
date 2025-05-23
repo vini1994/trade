@@ -14,7 +14,10 @@
           <div v-for="(trade, index) in trades" :key="index" class="list-group-item">
             <div class="d-flex justify-content-between align-items-start">
               <div>
-                <h6 class="mb-1">{{ trade.symbol }}</h6>
+                <div class="d-flex justify-content-between align-items-center mb-1">
+                  <h6 class="mb-0">{{ trade.symbol }}</h6>
+                  <small class="text-muted">{{ formatTimestamp(trade.timestamp) }}</small>
+                </div>
                 <div class="d-flex gap-3">
                   <span class="badge" :class="trade.type === 'LONG' ? 'bg-success' : 'bg-danger'">
                     {{ trade.type }}
@@ -144,6 +147,7 @@ interface Trade {
   analysisUrl: string
   executionResult?: ExecutionResult
   executionError?: string
+  timestamp: string
 }
 
 const trades = ref<Trade[]>([])
@@ -202,6 +206,19 @@ const playAlertSound = () => {
     })
   }
 }
+
+const formatTimestamp = (timestamp: string) => {
+  const date = new Date(timestamp);
+  return date.toLocaleString(undefined, {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false
+  });
+};
 
 onMounted(() => {
   connectWebSocket()

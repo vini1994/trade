@@ -29,6 +29,7 @@ interface TradeNotification {
         stopOrderId: string;
     };
     executionError?: string;
+    timestamp: string;
 }
 
 export class NotificationService {
@@ -38,9 +39,13 @@ export class NotificationService {
         this.apiUrl = apiUrl;
     }
 
-    public async sendTradeNotification(trade: TradeNotification): Promise<void> {
+    public async sendTradeNotification(trade: Omit<TradeNotification, 'timestamp'>): Promise<void> {
         try {
-            const response = await axios.post(this.apiUrl, trade);
+            const notificationWithTimestamp = {
+                ...trade,
+                timestamp: new Date().toISOString()
+            };
+            const response = await axios.post(this.apiUrl, notificationWithTimestamp);
             console.log('Trade notification sent successfully:', response.status);
         } catch (error) {
             console.error('Error sending trade notification:', error);

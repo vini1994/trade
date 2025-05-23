@@ -89,11 +89,11 @@ export class PositionValidator {
             const positions = await this.getPositions(symbol);
             
             // Find position for the specified type
-            const position = positions.find(p => 
+            const position = positions ? positions.find(p => 
                 p.symbol === symbol && 
                 p.positionSide === type && 
                 parseFloat(p.positionAmt) !== 0
-            );
+            ) : undefined;
 
             if (position) {
                 return {
