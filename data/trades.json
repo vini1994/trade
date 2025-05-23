@@ -20,5 +20,38 @@
     "par": "UXLINKUSDT",
     "volume": false,
     "url_analysis": "https://www.tradingview.com/x/rZpeFA4Q/"
+  },
+  {
+    "entry": 2.3635,
+    "stop": 2.3161,
+    "ls": "LONG",
+    "tp1": 2.4309,
+    "tp2": null,
+    "tp3": null,
+    "par": "XRPUSDT",
+    "volume": false,
+    "url_analysis": "https://br.tradingview.com/chart/qNmjxXtq/"
+  },
+  {
+    "entry": 2.3421,
+    "stop": 2.3822,
+    "ls": "SHORT",
+    "tp1": 2.2807,
+    "tp2": null,
+    "tp3": null,
+    "par": "XRPUSDT",
+    "volume": false,
+    "url_analysis": "https://br.tradingview.com/chart/qNmjxXtq/"
+  },
+  {
+    "entry": 0.00954,
+    "stop": 0.0111,
+    "ls": "SHORT",
+    "tp1": 0.00807,
+    "tp2": null,
+    "tp3": null,
+    "par": "EPTUSDT",
+    "volume": false,
+    "url_analysis": "https://br.tradingview.com/chart/qNmjxXtq/"
   }
 ]
