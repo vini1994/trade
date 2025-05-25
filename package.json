@@ -20,6 +20,7 @@
     "@types/cors": "^2.8.18",
     "@types/express": "^5.0.2",
     "@types/node": "^22.15.2",
+    "@types/winston": "^2.4.4",
     "@types/ws": "^8.18.1",
     "@vitejs/plugin-vue": "^5.2.4",
     "axios": "^1.9.0",
@@ -36,6 +37,7 @@
     "vite": "^6.3.5",
     "vue": "^3.5.14",
     "vue-router": "^4.5.1",
+    "winston": "^3.17.0",
     "ws": "^8.18.2"
   },
   "devDependencies": {
