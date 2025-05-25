@@ -22,21 +22,10 @@
     "url_analysis": "https://www.tradingview.com/x/rZpeFA4Q/"
   },
   {
-    "entry": 2.3635,
-    "stop": 2.3161,
+    "entry": 2.3063,
+    "stop": 2.2628,
     "ls": "LONG",
-    "tp1": 2.4309,
-    "tp2": null,
-    "tp3": null,
-    "par": "XRPUSDT",
-    "volume": false,
-    "url_analysis": "https://br.tradingview.com/chart/qNmjxXtq/"
-  },
-  {
-    "entry": 2.3216,
-    "stop": 2.3822,
-    "ls": "SHORT",
-    "tp1": 2.2611,
+    "tp1": 2.3467,
     "tp2": null,
     "tp3": null,
     "par": "XRPUSDT",
