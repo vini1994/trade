@@ -1,5 +1,4 @@
-import axios from 'axios';
-import crypto from 'crypto';
+import { BingXApiClient } from './services/BingXApiClient';
 import * as dotenv from 'dotenv';
 
 // Load environment variables
@@ -27,32 +26,11 @@ interface BingXOrderResponse {
 }
 
 export class OrderMonitor {
-    private readonly apiKey: string;
-    private readonly apiSecret: string;
-    private readonly baseUrl: string;
+    private readonly apiClient: BingXApiClient;
     private openOrders: Map<string, Order> = new Map();
 
     constructor() {
-        this.apiKey = process.env.BINGX_API_KEY || '';
-        this.apiSecret = process.env.BINGX_API_SECRET || '';
-        this.baseUrl = process.env.BINGX_BASE_URL || 'https://open-api.bingx.com';
-
-        if (!this.apiKey || !this.apiSecret) {
-            throw new Error('BINGX_API_KEY and BINGX_API_SECRET must be set in .env file');
-        }
-    }
-
-    private generateSignature(timestamp: number, method: string, path: string, params: any): string {
-        const queryString = Object.entries(params)
-            .sort(([a], [b]) => a.localeCompare(b))
-            .map(([key, value]) => `${key}=${value}`)
-            .join('&');
-
-        const signatureString = `${timestamp}${method}${path}${queryString}`;
-        return crypto
-            .createHmac('sha256', this.apiSecret)
-            .update(signatureString)
-            .digest('hex');
+        this.apiClient = new BingXApiClient();
     }
 
     private getOrderKey(order: Order): string {
@@ -61,24 +39,12 @@ export class OrderMonitor {
 
     public async updateOpenOrders(): Promise<void> {
         try {
-            const timestamp = Date.now();
             const path = '/openApi/swap/v2/user/openOrders';
             const params = {
-                timestamp: timestamp.toString()
+                timestamp: Date.now().toString()
             };
 
-            const signature = this.generateSignature(timestamp, 'GET', path, params);
-
-            const response = await axios.get(`${this.baseUrl}${path}`, {
-                params,
-                headers: {
-                    'X-BX-APIKEY': this.apiKey,
-                    'X-BX-SIGN': signature,
-                    'X-BX-TIMESTAMP': timestamp.toString()
-                }
-            });
-
-            const data = response.data as BingXOrderResponse;
+            const data = await this.apiClient.get<BingXOrderResponse>(path, params);
             
             // Clear existing orders
             this.openOrders.clear();

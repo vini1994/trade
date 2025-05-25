@@ -1,5 +1,4 @@
-import axios from 'axios';
-import crypto from 'crypto';
+import { BingXApiClient } from './services/BingXApiClient';
 import * as dotenv from 'dotenv';
 
 // Load environment variables
@@ -23,57 +22,21 @@ interface BingXPositionResponse {
 }
 
 export class PositionValidator {
-    private readonly apiKey: string;
-    private readonly apiSecret: string;
-    private readonly baseUrl: string;
+    private readonly apiClient: BingXApiClient;
 
     constructor() {
-        // Load configuration from environment variables
-        this.apiKey = process.env.BINGX_API_KEY || '';
-        this.apiSecret = process.env.BINGX_API_SECRET || '';
-        this.baseUrl = process.env.BINGX_BASE_URL || 'https://open-api.bingx.com';
-
-        // Validate required environment variables
-        if (!this.apiKey || !this.apiSecret) {
-            throw new Error('BINGX_API_KEY and BINGX_API_SECRET must be set in .env file');
-        }
-    }
-
-    private generateSignature(timestamp: number, method: string, path: string, params: any): string {
-        const queryString = Object.entries(params)
-            .sort(([a], [b]) => a.localeCompare(b))
-            .map(([key, value]) => `${key}=${value}`)
-            .join('&');
-
-        const signatureString = `${timestamp}${method}${path}${queryString}`;
-        return crypto
-            .createHmac('sha256', this.apiSecret)
-            .update(signatureString)
-            .digest('hex');
+        this.apiClient = new BingXApiClient();
     }
 
     public async getPositions(symbol: string): Promise<Position[]> {
-        const timestamp = Date.now();
         const path = '/openApi/swap/v2/user/positions';
         const params = {
-            symbol: symbol,
-            timestamp: timestamp.toString()
+            symbol: symbol
         };
 
-        const signature = this.generateSignature(timestamp, 'GET', path, params);
-
         try {
-            const response = await axios.get(`${this.baseUrl}${path}`, {
-                params,
-                headers: {
-                    'X-BX-APIKEY': this.apiKey,
-                    'X-BX-SIGN': signature,
-                    'X-BX-TIMESTAMP': timestamp.toString()
-                }
-            });
-
-            const data = response.data as BingXPositionResponse;
-            return data.data;
+            const response = await this.apiClient.get<BingXPositionResponse>(path, params);
+            return response.data;
         } catch (error) {
             console.error('Error fetching positions:', error);
             throw error;

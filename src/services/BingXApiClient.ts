@@ -85,12 +85,16 @@ export class BingXApiClient {
     }
 
     private generateSignature(timestamp: number, method: string, path: string, params: Record<string, any>): string {
-        const queryString = Object.entries(params)
+        // Sort parameters alphabetically
+        const sortedParams = Object.entries(params)
             .sort(([a], [b]) => a.localeCompare(b))
             .map(([key, value]) => `${key}=${value}`)
             .join('&');
 
-        const signatureString = `${timestamp}${method}${path}${queryString}`;
+        // Create signature string
+        const signatureString = `${timestamp}${method}${path}${sortedParams}`;
+        
+        // Generate HMAC SHA256 signature
         return crypto
             .createHmac('sha256', this.apiSecret)
             .update(signatureString)
@@ -112,25 +116,87 @@ export class BingXApiClient {
         };
     }
 
-    public async get<T = any>(path: string, params: Record<string, any> = {}): Promise<T> {
+    private handleBigIntResponse(response: string): any {
+        try {
+            // First try to parse as JSON
+            const data = JSON.parse(response);
+            
+            // Function to recursively process objects and handle BigInt values
+            const processBigInts = (obj: any): any => {
+                if (typeof obj !== 'object' || obj === null) return obj;
+                
+                if (Array.isArray(obj)) {
+                    return obj.map(item => processBigInts(item));
+                }
+                
+                const result: any = {};
+                for (const [key, value] of Object.entries(obj)) {
+                    // Check if the value is a string that looks like a BigInt
+                    if (typeof value === 'string' && /^\d{16,}$/.test(value)) {
+                        try {
+                            result[key] = BigInt(value).toString();
+                        } catch {
+                            result[key] = value;
+                        }
+                    } else if (typeof value === 'object' && value !== null) {
+                        result[key] = processBigInts(value);
+                    } else {
+                        result[key] = value;
+                    }
+                }
+                return result;
+            };
+
+            return processBigInts(data);
+        } catch (error) {
+            logger.error('Error parsing response with BigInt handling', {
+                error: error instanceof Error ? error.message : 'Unknown error',
+                response
+            });
+            return response;
+        }
+    }
+
+    private async makeRequest<T = any>(
+        method: string,
+        path: string,
+        params: Record<string, any> = {},
+        data?: Record<string, any>
+    ): Promise<T> {
         const requestId = crypto.randomUUID();
-        logger.info('Making GET request', {
+        const timestamp = Date.now().toString();
+        
+        // Add timestamp to params
+        const requestParams = { ...params, timestamp };
+        
+        // URL encode parameters
+        const encodedParams = Object.entries(requestParams)
+            .map(([key, value]) => `${key}=${encodeURIComponent(value)}`)
+            .join('&');
+
+        const signature = this.generateSignature(parseInt(timestamp), method, path, requestParams);
+        const url = `${this.baseUrl}${path}?${encodedParams}&signature=${signature}`;
+
+        logger.info(`Making ${method} request`, {
             requestId,
             path,
-            params: { ...params, timestamp: '[REDACTED]' }
+            params: { ...requestParams, timestamp: '[REDACTED]' }
         });
 
         const config: AxiosRequestConfig = {
-            params,
-            headers: this.getHeaders('GET', path, params)
+            method,
+            url,
+            headers: this.getHeaders(method, path, requestParams),
+            data,
+            transformResponse: [(data) => this.handleBigIntResponse(data)]
         };
 
         try {
             const startTime = Date.now();
-            const response: AxiosResponse<T> = await axios.get(`${this.baseUrl}${path}`, config);
+            const response: AxiosResponse<T> = await axios(config);
             const duration = Date.now() - startTime;
 
-            logger.info('GET request successful', {
+            logger.info(`${method} request successful`, {
                 requestId,
                 path,
                 duration,
@@ -148,110 +214,27 @@ export class BingXApiClient {
                     responseData: error.response?.data
                 };
 
-                logger.error('GET request failed', errorData);
+                logger.error(`${method} request failed`, errorData);
                 throw new Error(`BingX API Error: ${error.response?.data?.msg || error.message}`);
             }
-            logger.error('Unexpected error in GET request', {
+            logger.error(`Unexpected error in ${method} request`, {
                 requestId,
                 path,
                 error: error instanceof Error ? error.message : 'Unknown error'
             });
             throw error;
         }
+    }
+
+    public async get<T = any>(path: string, params: Record<string, any> = {}): Promise<T> {
+        return this.makeRequest<T>('GET', path, params);
     }
 
     public async post<T = any>(path: string, data: Record<string, any> = {}): Promise<T> {
-        const requestId = crypto.randomUUID();
-        logger.info('Making POST request', {
-            requestId,
-            path,
-            data: { ...data, timestamp: '[REDACTED]' }
-        });
-
-        const config: AxiosRequestConfig = {
-            headers: this.getHeaders('POST', path, data)
-        };
-
-        try {
-            const startTime = Date.now();
-            const response: AxiosResponse<T> = await axios.post(`${this.baseUrl}${path}`, data, config);
-            const duration = Date.now() - startTime;
-
-            logger.info('POST request successful', {
-                requestId,
-                path,
-                duration,
-                statusCode: response.status
-            });
-
-            return response.data;
-        } catch (error) {
-            if (axios.isAxiosError(error)) {
-                const errorData = {
-                    requestId,
-                    path,
-                    statusCode: error.response?.status,
-                    errorMessage: error.response?.data?.msg || error.message,
-                    responseData: error.response?.data
-                };
-
-                logger.error('POST request failed', errorData);
-                throw new Error(`BingX API Error: ${error.response?.data?.msg || error.message}`);
-            }
-            logger.error('Unexpected error in POST request', {
-                requestId,
-                path,
-                error: error instanceof Error ? error.message : 'Unknown error'
-            });
-            throw error;
-        }
+        return this.makeRequest<T>('POST', path, {}, data);
     }
 
     public async delete<T = any>(path: string, params: Record<string, any> = {}): Promise<T> {
-        const requestId = crypto.randomUUID();
-        logger.info('Making DELETE request', {
-            requestId,
-            path,
-            params: { ...params, timestamp: '[REDACTED]' }
-        });
-
-        const config: AxiosRequestConfig = {
-            params,
-            headers: this.getHeaders('DELETE', path, params)
-        };
-
-        try {
-            const startTime = Date.now();
-            const response: AxiosResponse<T> = await axios.delete(`${this.baseUrl}${path}`, config);
-            const duration = Date.now() - startTime;
-
-            logger.info('DELETE request successful', {
-                requestId,
-                path,
-                duration,
-                statusCode: response.status
-            });
-
-            return response.data;
-        } catch (error) {
-            if (axios.isAxiosError(error)) {
-                const errorData = {
-                    requestId,
-                    path,
-                    statusCode: error.response?.status,
-                    errorMessage: error.response?.data?.msg || error.message,
-                    responseData: error.response?.data
-                };
-
-                logger.error('DELETE request failed', errorData);
-                throw new Error(`BingX API Error: ${error.response?.data?.msg || error.message}`);
-            }
-            logger.error('Unexpected error in DELETE request', {
-                requestId,
-                path,
-                error: error instanceof Error ? error.message : 'Unknown error'
-            });
-            throw error;
-        }
+        return this.makeRequest<T>('DELETE', path, params);
     }
 } 

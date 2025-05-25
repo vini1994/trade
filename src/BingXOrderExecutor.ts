@@ -1,5 +1,4 @@
-import axios from 'axios';
-import crypto from 'crypto';
+import { BingXApiClient } from './services/BingXApiClient';
 import { LeverageCalculator } from './LeverageCalculator';
 import { PositionValidator } from './PositionValidator';
 import { TradeDatabase } from './TradeDatabase';
@@ -35,68 +34,32 @@ interface BingXOrderResponse {
     };
 }
 
-
-
 export class BingXOrderExecutor {
-    private readonly apiKey: string;
-    private readonly apiSecret: string;
-    private readonly baseUrl: string;
+    private readonly apiClient: BingXApiClient;
     private readonly leverageCalculator: LeverageCalculator;
     private readonly positionValidator: PositionValidator;
     private readonly tradeDatabase: TradeDatabase;
     private readonly margin: number;
 
     constructor() {
-        // Load configuration from environment variables
-        this.apiKey = process.env.BINGX_API_KEY || '';
-        this.apiSecret = process.env.BINGX_API_SECRET || '';
-        this.baseUrl = process.env.BINGX_BASE_URL || 'https://open-api.bingx.com';
+        // Initialize API client
+        this.apiClient = new BingXApiClient();
         this.margin = parseFloat(process.env.BINGX_MARGIN || '100');
-
-        // Validate required environment variables
-        if (!this.apiKey || !this.apiSecret) {
-            throw new Error('BINGX_API_KEY and BINGX_API_SECRET must be set in .env file');
-        }
 
         this.leverageCalculator = new LeverageCalculator();
         this.positionValidator = new PositionValidator();
         this.tradeDatabase = new TradeDatabase();
     }
 
-    private generateSignature(timestamp: number, method: string, path: string, params: any): string {
-        const queryString = Object.entries(params)
-            .sort(([a], [b]) => a.localeCompare(b))
-            .map(([key, value]) => `${key}=${value}`)
-            .join('&');
-
-        const signatureString = `${timestamp}${method}${path}${queryString}`;
-        return crypto
-            .createHmac('sha256', this.apiSecret)
-            .update(signatureString)
-            .digest('hex');
-    }
-
     private async getSymbolPrice(symbol: string): Promise<number> {
-        const timestamp = Date.now();
-        const path = '/openApi/swap/v2/quote/ticker';
-        const params = {
-            symbol: symbol,
-            timestamp: timestamp.toString()
-        };
-
-        const signature = this.generateSignature(timestamp, 'GET', path, params);
-
         try {
-            const response = await axios.get(`${this.baseUrl}${path}`, {
-                params,
-                headers: {
-                    'X-BX-APIKEY': this.apiKey,
-                    'X-BX-SIGN': signature,
-                    'X-BX-TIMESTAMP': timestamp.toString()
-                }
-            });
+            const path = '/openApi/swap/v2/quote/ticker';
+            const params = {
+                symbol: symbol
+            };
 
-            return parseFloat(response.data.data.lastPrice);
+            const response = await this.apiClient.get<{ data: { lastPrice: string } }>(path, params);
+            return parseFloat(response.data.lastPrice);
         } catch (error) {
             console.error('Error fetching symbol price:', error);
             throw error;
@@ -131,7 +94,6 @@ export class BingXOrderExecutor {
         stopPrice: number,
         quantity: number
     ): Promise<BingXOrderResponse> {
-        const timestamp = Date.now();
         const path = '/openApi/swap/v2/trade/order';
         const params: any = {
             symbol: symbol,
@@ -140,8 +102,7 @@ export class BingXOrderExecutor {
             type: type,
             price: type === 'MARKET' || type === 'STOP_MARKET' ? '' : price.toString(),
             stopPrice: stopPrice.toString(),
-            quantity: quantity.toString(),
-            timestamp: timestamp.toString()
+            quantity: quantity.toString()
         };
 
         // Add activationPrice for TRIGGER_LIMIT orders
@@ -149,18 +110,8 @@ export class BingXOrderExecutor {
             params.activationPrice = price.toString();
         }
 
-        const signature = this.generateSignature(timestamp, 'POST', path, params);
-
         try {
-            const response = await axios.post(`${this.baseUrl}${path}`, params, {
-                headers: {
-                    'X-BX-APIKEY': this.apiKey,
-                    'X-BX-SIGN': signature,
-                    'X-BX-TIMESTAMP': timestamp.toString()
-                }
-            });
-
-            return response.data;
+            return await this.apiClient.post<BingXOrderResponse>(path, params);
         } catch (error) {
             console.error('Error placing order:', error);
             throw error;
@@ -174,7 +125,6 @@ export class BingXOrderExecutor {
         quantity: number,
         activationPrice: number
     ): Promise<BingXOrderResponse> {
-        const timestamp = Date.now();
         const path = '/openApi/swap/v2/trade/order';
         const params: any = {
             symbol: symbol,
@@ -182,22 +132,11 @@ export class BingXOrderExecutor {
             positionSide: positionSide,
             type: 'TRAILING_STOP_MARKET',
             quantity: quantity.toString(),
-            activationPrice: activationPrice.toString(),
-            timestamp: timestamp.toString()
+            activationPrice: activationPrice.toString()
         };
 
-        const signature = this.generateSignature(timestamp, 'POST', path, params);
-
         try {
-            const response = await axios.post(`${this.baseUrl}${path}`, params, {
-                headers: {
-                    'X-BX-APIKEY': this.apiKey,
-                    'X-BX-SIGN': signature,
-                    'X-BX-TIMESTAMP': timestamp.toString()
-                }
-            });
-
-            return response.data;
+            return await this.apiClient.post<BingXOrderResponse>(path, params);
         } catch (error) {
             console.error('Error placing trailing stop order:', error);
             throw error;
@@ -442,24 +381,14 @@ export class BingXOrderExecutor {
     }
 
     public async cancelOrder(symbol: string, orderId: string): Promise<void> {
-        const timestamp = Date.now();
         const path = '/openApi/swap/v2/trade/cancelOrder';
         const params = {
             symbol: symbol,
-            orderId: orderId,
-            timestamp: timestamp.toString()
+            orderId: orderId
         };
 
-        const signature = this.generateSignature(timestamp, 'POST', path, params);
-
         try {
-            await axios.post(`${this.baseUrl}${path}`, params, {
-                headers: {
-                    'X-BX-APIKEY': this.apiKey,
-                    'X-BX-SIGN': signature,
-                    'X-BX-TIMESTAMP': timestamp.toString()
-                }
-            });
+            await this.apiClient.post(path, params);
         } catch (error) {
             console.error('Error canceling order:', error);
             throw error;
