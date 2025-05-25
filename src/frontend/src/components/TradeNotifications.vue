@@ -38,6 +38,9 @@
                     <span class="badge" :class="trade.validation.isValid ? 'bg-success' : 'bg-danger'">
                       {{ trade.validation.isValid ? 'Valid' : 'Invalid' }}
                     </span>
+                    <span v-if="trade.isWarning" class="badge bg-warning text-dark">
+                      ⚠️ Warning
+                    </span>
                     <small class="text-muted">{{ trade.validation.message }}</small>
                   </div>
                   <div class="mt-1">
@@ -148,6 +151,7 @@ interface Trade {
   executionResult?: ExecutionResult
   executionError?: string
   timestamp: string
+  isWarning?: boolean
 }
 
 const trades = ref<Trade[]>([])

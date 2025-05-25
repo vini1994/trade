@@ -30,6 +30,7 @@ interface TradeNotification {
     };
     executionError?: string;
     timestamp: string;
+    isWarning?: boolean;
 }
 
 export class NotificationService {
