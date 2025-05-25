@@ -80,22 +80,13 @@ export class TradeEntryAnalyzer {
         currentClose: number;
         hasClosePriceBeforeEntry: boolean;
         message: string;
+        warning: boolean;
     }> {
         try {
             // Calculate risk-reward ratio
             const entryToStopDistance = Math.abs(entry - stop);
             const entryToTP1Distance = Math.abs(entry - tp1);
             const riskRewardRatio = entryToTP1Distance / entryToStopDistance;
-
-            // Validate risk-reward ratio
-            if (riskRewardRatio < 0.8) {
-                return {
-                    canEnter: false,
-                    currentClose: 0,
-                    hasClosePriceBeforeEntry: false,
-                    message: `Invalid risk-reward ratio. Distance to TP1 (${entryToTP1Distance}) is less than 80% of distance to stop (${entryToStopDistance})`
-                };
-            }
 
             // Get data from either Binance or BingX using DataServiceManager
             const { data: klineData, source } = await this.dataServiceManager.getKlineData(symbol);
@@ -104,23 +95,33 @@ export class TradeEntryAnalyzer {
             const currentCandle = klineData[1];
             const currentClose = parseFloat(currentCandle.close);
             
+            // Check if entry condition is met first
+            const entryConditionMet = this.isEntryConditionMet(currentCandle, entry, type);
+            let hasClosePriceBeforeEntry = false;
+            if (entryConditionMet) {
+                hasClosePriceBeforeEntry = this.hasClosePriceBeforeEntry(klineData, entry, type);
+            }
+
+            // Validate risk-reward ratio
+            if (riskRewardRatio < 0.8) {
+                return {
+                    canEnter: false,
+                    currentClose,
+                    hasClosePriceBeforeEntry,
+                    warning: entryConditionMet && hasClosePriceBeforeEntry,
+                    message: `Invalid risk-reward ratio. Distance to TP1 (${entryToTP1Distance}) is less than 80% of distance to stop (${entryToStopDistance})`
+                };
+            }
+            
             // Check if wick ratio is valid
             if (!this.isWickRatioValid(currentCandle, type)) {
                 return {
                     canEnter: false,
                     currentClose,
-                    hasClosePriceBeforeEntry: false,
+                    hasClosePriceBeforeEntry,
+                    warning: entryConditionMet && hasClosePriceBeforeEntry,
                     message: `Invalid candle wick ratio. ${type === 'LONG' ? 'Upper' : 'Lower'} wick is more than 80% of total candle height [${source}]`
                 };
-            }
-            
-            // Check if entry condition is met
-            const entryConditionMet = this.isEntryConditionMet(currentCandle, entry, type);
-            
-            // If entry condition is met, check for prices in range
-            let hasClosePriceBeforeEntry = false;
-            if (entryConditionMet) {
-                hasClosePriceBeforeEntry = this.hasClosePriceBeforeEntry(klineData, entry, type);
             }
 
             // Determine if we can enter the trade
@@ -140,6 +141,7 @@ export class TradeEntryAnalyzer {
                 canEnter,
                 currentClose,
                 hasClosePriceBeforeEntry,
+                warning: false,
                 message
             };
         } catch (error: any) {

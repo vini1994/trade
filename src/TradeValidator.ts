@@ -33,6 +33,7 @@ export class TradeValidator {
             currentClose: number;
             hasClosePriceBeforeEntry: boolean;
             message: string;
+            warning: boolean;
         };
         volumeAnalysis: {
             color: VolumeColor;
@@ -42,6 +43,7 @@ export class TradeValidator {
             currentVolume: number;
         };
         message: string;
+        warning: boolean;
     }> {
         try {
             // Run both analyses in parallel
@@ -56,8 +58,6 @@ export class TradeValidator {
                 this.volumeAnalyzer.analyzeVolume(trade.symbol)
             ]);
 
-            
-
             // Check if both conditions are met
             const isEntryValid = entryAnalysis.canEnter;
             let isVolumeValid = this.isVolumeValid(volumeAnalysis.color);
@@ -68,6 +68,9 @@ export class TradeValidator {
 
             // Determine if the trade is valid
             const isValid = isEntryValid && isVolumeValid;
+
+            // Set warning flag - true if entry has warning or if entry is valid but volume is invalid
+            const warning = entryAnalysis.warning || (isEntryValid && !isVolumeValid);
 
             // Generate appropriate message
             let message = '';
@@ -85,7 +88,8 @@ export class TradeValidator {
                 isValid,
                 entryAnalysis,
                 volumeAnalysis,
-                message
+                message,
+                warning
             };
         } catch (error) {
             console.error(`Error validating trade for ${trade.symbol}:`, error);
