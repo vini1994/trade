@@ -79,7 +79,28 @@ export class TradeCronJob {
             console.log(`Message: ${validationResult.message}`);
             console.log(`Volume Analysis: ${validationResult.volumeAnalysis.color} (StdBar: ${validationResult.volumeAnalysis.stdBar.toFixed(2)})`);
             console.log(`Current Close: ${validationResult.entryAnalysis.currentClose}`);
+            if (validationResult.warning) {
+                console.log(`⚠️ WARNING: Trade has warning status - Entry conditions met but invalidated by other factors`);
+            }
             console.log('----------------------------------------');
+
+            // Send notification for trades with warning status
+            if (validationResult.warning) {
+                await this.notificationService.sendTradeNotification({
+                    symbol: trade.par,
+                    type: trade.ls as 'LONG' | 'SHORT',
+                    entry: trade.entry,
+                    stop: trade.stop,
+                    takeProfits: {
+                        tp1: trade.tp1,
+                        tp2: trade.tp2,
+                        tp3: trade.tp3
+                    },
+                    validation: validationResult,
+                    analysisUrl: trade.url_analysis,
+                    isWarning: true
+                });
+            }
 
             if (validationResult.isValid) {
                 validCount++;

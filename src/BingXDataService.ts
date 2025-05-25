@@ -1,4 +1,4 @@
-import axios from 'axios';
+import { BingXApiClient } from './services/BingXApiClient';
 import sqlite3 from 'sqlite3';
 import { open } from 'sqlite';
 import * as path from 'path';
@@ -19,15 +19,12 @@ interface CacheKey {
 }
 
 export class BingXDataService {
-    private readonly baseUrl: string;
-    private readonly apiKey: string;
-    private readonly apiSecret: string;
+    private readonly apiClient: BingXApiClient;
     private db: any;
 
     constructor() {
-        this.baseUrl = process.env.BINGX_BASE_URL || 'https://open-api.bingx.com';
-        this.apiKey = process.env.BINGX_API_KEY || '';
-        this.apiSecret = process.env.BINGX_API_SECRET || '';
+        // Initialize without any config since we're using environment variables
+        this.apiClient = new BingXApiClient();
         this.initializeDatabase();
     }
 
@@ -82,19 +79,6 @@ export class BingXDataService {
         );
     }
 
-    private generateSignature(timestamp: number, method: string, path: string, params: any): string {
-        const queryString = Object.entries(params)
-            .sort(([a], [b]) => a.localeCompare(b))
-            .map(([key, value]) => `${key}=${value}`)
-            .join('&');
-
-        const signatureString = `${timestamp}${method}${path}${queryString}`;
-        return crypto
-            .createHmac('sha256', this.apiSecret)
-            .update(signatureString)
-            .digest('hex');
-    }
-
     private parseKlineData(kline: any): KlineData {
         return {
             openTime: kline.time,
@@ -132,27 +116,16 @@ export class BingXDataService {
         }
 
         try {
-            const timestamp = Date.now();
             const path = '/openApi/swap/v3/quote/klines';
             const params = {
                 symbol: normalizedSymbol,
                 interval: '1h',
                 limit: 56,
-                timestamp: timestamp.toString()
+                timestamp: Date.now().toString()
             };
 
-            const signature = this.generateSignature(timestamp, 'GET', path, params);
-
-            const response = await axios.get(`${this.baseUrl}${path}`, {
-                params,
-                headers: {
-                    'X-BX-APIKEY': this.apiKey,
-                    'X-BX-SIGN': signature,
-                    'X-BX-TIMESTAMP': timestamp.toString()
-                }
-            });
-
-            const klineData = response.data.data.map(this.parseKlineData);
+            const response = await this.apiClient.get<{ data: any[] }>(path, params);
+            const klineData = response.data.map(this.parseKlineData);
             
             // Cache the data
             await this.cacheData(normalizedSymbol, timeComponents, klineData);
@@ -168,25 +141,14 @@ export class BingXDataService {
     public async getSymbolPrice(symbol: string): Promise<number> {
         const normalizedSymbol = this.normalizeSymbol(symbol);
         try {
-            const timestamp = Date.now();
             const path = '/openApi/swap/v2/quote/ticker';
             const params = {
                 symbol: normalizedSymbol,
-                timestamp: timestamp.toString()
+                timestamp: Date.now().toString()
             };
 
-            const signature = this.generateSignature(timestamp, 'GET', path, params);
-
-            const response = await axios.get(`${this.baseUrl}${path}`, {
-                params,
-                headers: {
-                    'X-BX-APIKEY': this.apiKey,
-                    'X-BX-SIGN': signature,
-                    'X-BX-TIMESTAMP': timestamp.toString()
-                }
-            });
-
-            return parseFloat(response.data.data.lastPrice);
+            const response = await this.apiClient.get<{ data: { lastPrice: string } }>(path, params);
+            return parseFloat(response.data.lastPrice);
         } catch (error) {
             console.error(`Error fetching price for ${normalizedSymbol}:`, error);
             throw error;
@@ -201,25 +163,20 @@ export class BingXDataService {
     }> {
         const normalizedSymbol = this.normalizeSymbol(symbol);
         try {
-            const timestamp = Date.now();
             const path = '/openApi/swap/v2/quote/contract';
             const params = {
                 symbol: normalizedSymbol,
-                timestamp: timestamp.toString()
+                timestamp: Date.now().toString()
             };
 
-            const signature = this.generateSignature(timestamp, 'GET', path, params);
+            const response = await this.apiClient.get<{ data: {
+                maxLeverage: number;
+                minLeverage: number;
+                maxPositionValue: number;
+                minPositionValue: number;
+            } }>(path, params);
 
-            const response = await axios.get(`${this.baseUrl}${path}`, {
-                params,
-                headers: {
-                    'X-BX-APIKEY': this.apiKey,
-                    'X-BX-SIGN': signature,
-                    'X-BX-TIMESTAMP': timestamp.toString()
-                }
-            });
-
-            return response.data.data;
+            return response.data;
         } catch (error) {
             console.error(`Error fetching symbol info for ${normalizedSymbol}:`, error);
             throw error;
