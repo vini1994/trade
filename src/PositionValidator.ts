@@ -1,25 +1,10 @@
 import { BingXApiClient } from './services/BingXApiClient';
+import { normalizeSymbolBingX } from './utils/bingxUtils';
+import { Position, BingXPositionResponse } from './utils/types';
 import * as dotenv from 'dotenv';
 
 // Load environment variables
 dotenv.config();
-
-export interface Position {
-    symbol: string;
-    positionSide: 'LONG' | 'SHORT';
-    positionAmt: string;
-    entryPrice: string;
-    markPrice: string;
-    unRealizedProfit: string;
-    liquidationPrice: string;
-    leverage: string;
-}
-
-interface BingXPositionResponse {
-    code: number;
-    msg: string;
-    data: Position[];
-}
 
 export class PositionValidator {
     private readonly apiClient: BingXApiClient;
@@ -29,9 +14,10 @@ export class PositionValidator {
     }
 
     public async getPositions(symbol: string): Promise<Position[]> {
+        const normalizedSymbol = symbol === 'ALL' ? symbol : normalizeSymbolBingX(symbol);
         const path = '/openApi/swap/v2/user/positions';
         const params = {
-            symbol: symbol
+            symbol: normalizedSymbol
         };
 
         try {
@@ -49,26 +35,27 @@ export class PositionValidator {
         message: string;
     }> {
         try {
-            const positions = await this.getPositions(symbol);
+            const normalizedSymbol = normalizeSymbolBingX(symbol);
+            const positions = await this.getPositions(normalizedSymbol);
             
-            // Find position for the specified type
-            const position = positions ? positions.find(p => 
-                p.symbol === symbol && 
-                p.positionSide === type && 
+            // Find position for the given symbol and type
+            const position = positions.find(p => 
+                normalizeSymbolBingX(p.symbol) === normalizedSymbol &&
+                p.positionSide === type &&
                 parseFloat(p.positionAmt) !== 0
-            ) : undefined;
+            );
 
             if (position) {
                 return {
                     hasPosition: true,
                     position,
-                    message: `Found open ${type} position for ${symbol} with amount ${position.positionAmt}`
+                    message: `Found open ${type} position for ${normalizedSymbol} with amount ${position.positionAmt}`
                 };
             }
 
             return {
                 hasPosition: false,
-                message: `No open ${type} position found for ${symbol}`
+                message: `No open ${type} position found for ${normalizedSymbol}`
             };
         } catch (error) {
             console.error(`Error checking position for ${symbol}:`, error);
@@ -77,32 +64,34 @@ export class PositionValidator {
     }
 
     public async getPositionDetails(symbol: string, type: 'LONG' | 'SHORT'): Promise<{
-        position: Position | null;
-        details: {
+        hasPosition: boolean;
+        position?: Position;
+        message: string;
+        details?: {
             entryPrice: number;
             markPrice: number;
-            unrealizedProfit: number;
+            unrealizedPnL: number;
             liquidationPrice: number;
             leverage: number;
             positionAmount: number;
-        } | null;
+        };
     }> {
         try {
-            const { hasPosition, position } = await this.hasOpenPosition(symbol, type);
+            const normalizedSymbol = normalizeSymbolBingX(symbol);
+            const { hasPosition, position, message } = await this.hasOpenPosition(normalizedSymbol, type);
 
             if (!hasPosition || !position) {
-                return {
-                    position: null,
-                    details: null
-                };
+                return { hasPosition: false, message };
             }
 
             return {
+                hasPosition: true,
                 position,
+                message,
                 details: {
                     entryPrice: parseFloat(position.entryPrice),
                     markPrice: parseFloat(position.markPrice),
-                    unrealizedProfit: parseFloat(position.unRealizedProfit),
+                    unrealizedPnL: parseFloat(position.unRealizedProfit),
                     liquidationPrice: parseFloat(position.liquidationPrice),
                     leverage: parseFloat(position.leverage),
                     positionAmount: parseFloat(position.positionAmt)

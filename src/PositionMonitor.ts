@@ -1,9 +1,10 @@
 import { PositionValidator } from './PositionValidator';
 import { BingXWebSocket } from './BingXWebSocket';
 import { TradeDatabase } from './TradeDatabase';
-import { Position } from './PositionValidator';
+import { Position } from './utils/types';
 import { OrderMonitor, Order } from './OrderMonitor';
 import { BingXOrderExecutor } from './BingXOrderExecutor';
+import { normalizeSymbolBingX } from './utils/bingxUtils';
 import * as dotenv from 'dotenv';
 
 // Load environment variables
@@ -43,15 +44,16 @@ export class PositionMonitor {
     }
 
     private getPositionKey(symbol: string, positionSide: 'LONG' | 'SHORT'): string {
-        return `${symbol}_${positionSide}`;
+        const normalizedSymbol = normalizeSymbolBingX(symbol);
+        return `${normalizedSymbol}_${positionSide}`;
     }
 
     private async matchPositionWithTrade(position: Position): Promise<number | undefined> {
-        const openTrades = await this.tradeDatabase.getOpenTrades();
-        const matchingTrade = openTrades.find(trade => 
-            trade.symbol === position.symbol && 
-            trade.type === position.positionSide &&
-            Math.abs(parseFloat(position.entryPrice) - trade.entry) < 0.0001 // Small tolerance for floating point comparison
+        const normalizedSymbol = normalizeSymbolBingX(position.symbol);
+        const trades = await this.tradeDatabase.getOpenTrades();
+        const matchingTrade = trades.find(trade => 
+            normalizeSymbolBingX(trade.symbol) === normalizedSymbol && 
+            trade.type === position.positionSide
         );
         return matchingTrade?.id;
     }
@@ -166,8 +168,9 @@ export class PositionMonitor {
     }
 
     private createWebSocket(symbol: string, positionSide: 'LONG' | 'SHORT'): BingXWebSocket {
-        const ws = new BingXWebSocket(symbol, async (priceData) => {
-            const positionKey = this.getPositionKey(symbol, positionSide);
+        const normalizedSymbol = normalizeSymbolBingX(symbol);
+        const ws = new BingXWebSocket(normalizedSymbol, async (priceData) => {
+            const positionKey = this.getPositionKey(normalizedSymbol, positionSide);
             const monitoredPosition = this.monitoredPositions.get(positionKey);
             
             if (monitoredPosition) {
