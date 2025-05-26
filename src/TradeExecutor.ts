@@ -1,136 +1,94 @@
 import { BingXOrderExecutor } from './BingXOrderExecutor';
 import { TradeDatabase } from './TradeDatabase';
 import { PositionValidator } from './PositionValidator';
-
-interface Trade {
-    symbol: string;
-    type: 'LONG' | 'SHORT';
-    entry: number;
-    stop: number;
-    tp1: number;
-    tp2: number;
-    tp3: number;
-}
-
-interface TradeExecutionResult {
-    success: boolean;
-    message: string;
-    data?: {
-        entryOrder: any;
-        stopOrder: any;
-        tpOrders: any[];
-        leverage: {
-            optimalLeverage: number;
-            theoreticalMaxLeverage: number;
-            exchangeMaxLeverage: number;
-            stopLossPercentage: number;
-        };
-        quantity: number;
-        tradeRecord: any;
-    };
-}
+import { Trade, TradeExecutionResult } from './utils/types';
 
 export class TradeExecutor {
     private readonly orderExecutor: BingXOrderExecutor;
     private readonly tradeDatabase: TradeDatabase;
     private readonly positionValidator: PositionValidator;
+    private readonly volumeMarginPercentage: number;
 
     constructor() {
         this.orderExecutor = new BingXOrderExecutor();
         this.tradeDatabase = new TradeDatabase();
         this.positionValidator = new PositionValidator();
+        this.volumeMarginPercentage = Number(process.env.VOLUME_MARGIN_PERCENTAGE) || 10;
     }
 
-    /**
-     * Validates a trade before execution
-     * @param trade The trade to validate
-     * @returns Promise<boolean> True if trade is valid, false otherwise
-     */
     private async validateTrade(trade: Trade): Promise<{ isValid: boolean; message: string }> {
-        // Check if trade has required fields
-        if (!trade.symbol || !trade.type || !trade.entry || !trade.stop) {
-            return {
-                isValid: false,
-                message: 'Trade is missing required fields (symbol, type, entry, or stop)'
-            };
+        // Validate that at least tp1 is set
+        if (!trade.tp1) {
+            return { isValid: false, message: 'At least tp1 must be set for a trade' };
         }
 
-        // Validate take profit levels
+        // Validate take profit order for LONG trades
         if (trade.type === 'LONG') {
-            // Only validate tp1 if it has a value
-            if (trade.tp1 > 0 && trade.tp1 <= trade.entry) {
+            const takeProfits = [trade.tp1, trade.tp2, trade.tp3, trade.tp4, trade.tp5, trade.tp6]
+                .filter((tp): tp is number => tp !== null && tp > 0);
+
+            // Check if take profits are in ascending order
+            for (let i = 1; i < takeProfits.length; i++) {
+                if (takeProfits[i] <= takeProfits[i - 1]) {
+                    return {
+                        isValid: false,
+                        message: `Take profit ${i + 1} must be greater than take profit ${i} for LONG trades`
+                    };
+                }
+            }
+
+            // Check if all take profits are above entry
+            if (takeProfits.some(tp => tp <= trade.entry)) {
                 return {
                     isValid: false,
-                    message: 'Invalid take profit level 1 for LONG trade'
+                    message: 'All take profits must be above entry price for LONG trades'
                 };
             }
-            // Only validate tp2 if both tp1 and tp2 have values
-            if (trade.tp1 > 0 && trade.tp2 > 0 && trade.tp2 <= trade.tp1) {
-                return {
-                    isValid: false,
-                    message: 'Invalid take profit level 2 for LONG trade'
-                };
-            }
-            // Only validate tp3 if both tp2 and tp3 have values
-            if (trade.tp2 > 0 && trade.tp3 > 0 && trade.tp3 <= trade.tp2) {
-                return {
-                    isValid: false,
-                    message: 'Invalid take profit level 3 for LONG trade'
-                };
-            }
+
+            // Check if stop is below entry
             if (trade.stop >= trade.entry) {
                 return {
                     isValid: false,
-                    message: 'Stop loss must be below entry price for LONG trade'
+                    message: 'Stop loss must be below entry price for LONG trades'
                 };
             }
-        } else {
-            // Only validate tp1 if it has a value
-            if (trade.tp1 > 0 && trade.tp1 >= trade.entry) {
+        }
+
+        // Validate take profit order for SHORT trades
+        if (trade.type === 'SHORT') {
+            const takeProfits = [trade.tp1, trade.tp2, trade.tp3, trade.tp4, trade.tp5, trade.tp6]
+                .filter((tp): tp is number => tp !== null && tp > 0);
+
+            // Check if take profits are in descending order
+            for (let i = 1; i < takeProfits.length; i++) {
+                if (takeProfits[i] >= takeProfits[i - 1]) {
+                    return {
+                        isValid: false,
+                        message: `Take profit ${i + 1} must be less than take profit ${i} for SHORT trades`
+                    };
+                }
+            }
+
+            // Check if all take profits are below entry
+            if (takeProfits.some(tp => tp >= trade.entry)) {
                 return {
                     isValid: false,
-                    message: 'Invalid take profit level 1 for SHORT trade'
+                    message: 'All take profits must be below entry price for SHORT trades'
                 };
             }
-            // Only validate tp2 if both tp1 and tp2 have values
-            if (trade.tp1 > 0 && trade.tp2 > 0 && trade.tp2 >= trade.tp1) {
-                return {
-                    isValid: false,
-                    message: 'Invalid take profit level 2 for SHORT trade'
-                };
-            }
-            // Only validate tp3 if both tp2 and tp3 have values
-            if (trade.tp2 > 0 && trade.tp3 > 0 && trade.tp3 >= trade.tp2) {
-                return {
-                    isValid: false,
-                    message: 'Invalid take profit level 3 for SHORT trade'
-                };
-            }
+
+            // Check if stop is above entry
             if (trade.stop <= trade.entry) {
                 return {
                     isValid: false,
-                    message: 'Stop loss must be above entry price for SHORT trade'
+                    message: 'Stop loss must be above entry price for SHORT trades'
                 };
             }
         }
 
-        // Check for existing position
-        const { hasPosition, message } = await this.positionValidator.hasOpenPosition(trade.symbol, trade.type);
-        if (hasPosition) {
-            return {
-                isValid: false,
-                message: `Cannot execute trade: ${message}`
-            };
-        }
-
-        return { isValid: true, message: 'Trade is valid' };
+        return { isValid: true, message: 'Trade validation successful' };
     }
 
-    /**
-     * Executes a trade using the BingXOrderExecutor
-     * @param trade The trade to execute
-     * @returns Promise<TradeExecutionResult> The result of the trade execution
-     */
     public async executeTrade(trade: Trade): Promise<TradeExecutionResult> {
         try {
             // Validate trade before execution
@@ -145,10 +103,28 @@ export class TradeExecutor {
             // Execute the trade using BingXOrderExecutor
             const executionResult = await this.orderExecutor.executeTrade(trade);
 
+            // Calculate volume margin if applicable
+            let volumeMarginInfo = undefined;
+            if (trade.volume_adds_margin) {
+                const baseMargin = executionResult.quantity * trade.entry;
+                const marginAddition = (baseMargin * this.volumeMarginPercentage) / 100;
+                volumeMarginInfo = {
+                    percentage: this.volumeMarginPercentage,
+                    baseMargin,
+                    totalMargin: baseMargin + marginAddition
+                };
+                console.log(`Volume Margin Added: ${this.volumeMarginPercentage}%`);
+                console.log(`Base Margin: ${baseMargin.toFixed(2)}`);
+                console.log(`Total Margin: ${(baseMargin + marginAddition).toFixed(2)}`);
+            }
+
             return {
                 success: true,
                 message: 'Trade executed successfully',
-                data: executionResult
+                data: {
+                    ...executionResult,
+                    volumeMarginAdded: volumeMarginInfo
+                }
             };
         } catch (error) {
             console.error('Error executing trade:', error);
@@ -161,13 +137,13 @@ export class TradeExecutor {
 
     /**
      * Cancels an order
-     * @param symbol The trading pair symbol
+     * @param pair The trading pair
      * @param orderId The ID of the order to cancel
      * @returns Promise<boolean> True if order was cancelled successfully
      */
-    public async cancelOrder(symbol: string, orderId: string): Promise<boolean> {
+    public async cancelOrder(pair: string, orderId: string): Promise<boolean> {
         try {
-            await this.orderExecutor.cancelOrder(symbol, orderId);
+            await this.orderExecutor.cancelOrder(pair, orderId);
             return true;
         } catch (error) {
             console.error('Error cancelling order:', error);

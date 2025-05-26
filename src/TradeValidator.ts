@@ -9,6 +9,9 @@ interface Trade {
     stop: number;
     volume: boolean;
     tp1: number;
+    volume_required: boolean;
+    volume_adds_margin: boolean;
+    setup_description: string | null;
 }
 
 export class TradeValidator {
@@ -62,7 +65,12 @@ export class TradeValidator {
             const isEntryValid = entryAnalysis.canEnter;
             let isVolumeValid = this.isVolumeValid(volumeAnalysis.color);
 
-            if (trade.volume == false) {
+            // Handle volume validation based on volume_required
+            if (trade.volume_required) {
+                // If volume_required is true, volume must be valid
+                isVolumeValid = this.isVolumeValid(volumeAnalysis.color);
+            } else {
+                // If volume_required is false, volume is optional
                 isVolumeValid = true;
             }
 
@@ -70,18 +78,27 @@ export class TradeValidator {
             const isValid = isEntryValid && isVolumeValid;
 
             // Set warning flag - true if entry has warning or if entry is valid but volume is invalid
-            const warning = entryAnalysis.warning || (isEntryValid && !isVolumeValid);
+            const warning = entryAnalysis.warning || (isEntryValid && !isVolumeValid && trade.volume_required);
 
             // Generate appropriate message
             let message = '';
-            if (!isEntryValid && !isVolumeValid) {
+            if (!isEntryValid && !isVolumeValid && trade.volume_required) {
                 message = `Trade is invalid: ${entryAnalysis.message} and volume is not high enough (${volumeAnalysis.color})`;
             } else if (!isEntryValid) {
                 message = `Trade is invalid: ${entryAnalysis.message}`;
-            } else if (!isVolumeValid) {
+            } else if (!isVolumeValid && trade.volume_required) {
                 message = `Trade is invalid: Volume is not high enough (${volumeAnalysis.color})`;
             } else {
-                message = `Trade is valid: Entry conditions met and volume is high (${volumeAnalysis.color}) ${trade.volume ? 'with volume flag' : 'without volume flag'}`;
+                let volumeStatus = '';
+                if (trade.volume_required) {
+                    volumeStatus = `volume is high (${volumeAnalysis.color})`;
+                } else {
+                    volumeStatus = `volume is optional (${volumeAnalysis.color})`;
+                }
+                if (trade.volume_adds_margin) {
+                    volumeStatus += ' and will add margin';
+                }
+                message = `Trade is valid: Entry conditions met and ${volumeStatus}`;
             }
 
             return {
@@ -96,4 +113,4 @@ export class TradeValidator {
             throw error;
         }
     }
-} 
+}

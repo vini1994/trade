@@ -5,6 +5,35 @@ import * as dotenv from 'dotenv';
 // Load environment variables
 dotenv.config();
 
+interface TradeRecord {
+    id: number;
+    symbol: string;
+    type: 'LONG' | 'SHORT';
+    entry: number;
+    stop: number;
+    tp1: number | null;
+    tp2: number | null;
+    tp3: number | null;
+    tp4: number | null;
+    tp5: number | null;
+    tp6: number | null;
+    entryOrderId: string;
+    stopOrderId: string;
+    tp1OrderId: string | null;
+    tp2OrderId: string | null;
+    tp3OrderId: string | null;
+    tp4OrderId: string | null;
+    tp5OrderId: string | null;
+    tp6OrderId: string | null;
+    trailingStopOrderId: string | null;
+    quantity: number;
+    leverage: number;
+    status: 'OPEN' | 'CLOSED';
+    volume_adds_margin: boolean;
+    setup_description: string | null;
+    volume_required: boolean;
+}
+
 export class TradeOrderProcessor {
     private readonly tradeDatabase: TradeDatabase;
     private readonly orderStatusChecker: OrderStatusChecker;
@@ -33,7 +62,7 @@ export class TradeOrderProcessor {
         }
     }
 
-    private async processTrade(trade: any): Promise<void> {
+    private async processTrade(trade: TradeRecord): Promise<void> {
         try {
             // Collect all order IDs that need to be checked
             const orderIds = [
@@ -42,6 +71,9 @@ export class TradeOrderProcessor {
                 trade.tp1OrderId,
                 trade.tp2OrderId,
                 trade.tp3OrderId,
+                trade.tp4OrderId,
+                trade.tp5OrderId,
+                trade.tp6OrderId,
                 trade.trailingStopOrderId
             ].filter(id => id !== null);
 
@@ -92,7 +124,10 @@ export class TradeOrderProcessor {
                     if (orderId === trade.stopOrderId || 
                         orderId === trade.tp1OrderId || 
                         orderId === trade.tp2OrderId || 
-                        orderId === trade.tp3OrderId) {
+                        orderId === trade.tp3OrderId ||
+                        orderId === trade.tp4OrderId ||
+                        orderId === trade.tp5OrderId ||
+                        orderId === trade.tp6OrderId) {
                         
                         const entryPrice = trade.entry;
                         const exitPrice = details.executionDetails.averagePrice;
@@ -107,6 +142,26 @@ export class TradeOrderProcessor {
 
                         // Calculate final result (PnL - fee)
                         result = pnl - fee;
+
+                        // Log additional information for take profit orders
+                        if (orderId !== trade.stopOrderId) {
+                            const tpNumber = [
+                                trade.tp1OrderId,
+                                trade.tp2OrderId,
+                                trade.tp3OrderId,
+                                trade.tp4OrderId,
+                                trade.tp5OrderId,
+                                trade.tp6OrderId
+                            ].indexOf(orderId) + 1;
+
+                            console.log(`Take Profit ${tpNumber} executed:`);
+                            console.log(`- Target Price: ${trade[`tp${tpNumber}` as keyof TradeRecord]}`);
+                            console.log(`- Executed Price: ${exitPrice}`);
+                            console.log(`- Quantity: ${quantity}`);
+                            console.log(`- PnL: ${pnl.toFixed(2)}`);
+                            console.log(`- Fee: ${fee.toFixed(2)}`);
+                            console.log(`- Result: ${result.toFixed(2)}`);
+                        }
                     }
                 }
 
@@ -133,6 +188,12 @@ export class TradeOrderProcessor {
                     if (pnl !== 0) {
                         console.log(`PnL: ${pnl.toFixed(2)}, Fee: ${fee.toFixed(2)}, Result: ${result.toFixed(2)}`);
                         console.log(`Leverage used: ${trade.leverage}x`);
+                        if (trade.volume_adds_margin) {
+                            console.log(`Volume Margin was enabled for this trade`);
+                        }
+                        if (trade.setup_description) {
+                            console.log(`Setup Description: ${trade.setup_description}`);
+                        }
                     }
                 } else {
                     console.log(`Trade ${trade.id} remains open - ${orderId} is ${details.status.status}`);

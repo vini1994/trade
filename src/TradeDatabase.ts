@@ -1,55 +1,11 @@
 import sqlite3 from 'sqlite3';
 import { open } from 'sqlite';
 import * as path from 'path';
+import { Trade, TradeRecord, BingXOrderResponse, OrderDetails } from './utils/types';
+import * as dotenv from 'dotenv';
 
-interface Trade {
-    symbol: string;
-    type: 'LONG' | 'SHORT';
-    entry: number;
-    stop: number;
-    tp1: number;
-    tp2: number;
-    tp3: number;
-}
-
-interface Order {
-    code: number;
-    msg: string;
-    data: {
-        orderId: string;
-        clientOrderId: string;
-        symbol: string;
-        side: string;
-        positionSide: string;
-        type: string;
-        price: string;
-        stopPrice: string;
-        quantity: string;
-        status: string;
-    };
-}
-
-interface TradeRecord {
-    id: number;
-    symbol: string;
-    type: 'LONG' | 'SHORT';
-    entry: number;
-    stop: number;
-    tp1: number;
-    tp2: number;
-    tp3: number;
-    entryOrderId: string;
-    stopOrderId: string;
-    tp1OrderId: string | null;
-    tp2OrderId: string | null;
-    tp3OrderId: string | null;
-    trailingStopOrderId: string | null;
-    quantity: number;
-    leverage: number;
-    status: 'OPEN' | 'CLOSED';
-    createdAt: string;
-    updatedAt: string;
-}
+// Load environment variables
+dotenv.config();
 
 export class TradeDatabase {
     private db: any;
@@ -72,18 +28,27 @@ export class TradeDatabase {
                 type TEXT NOT NULL,
                 entry REAL NOT NULL,
                 stop REAL NOT NULL,
-                tp1 REAL NOT NULL,
-                tp2 REAL NOT NULL,
-                tp3 REAL NOT NULL,
+                tp1 REAL,
+                tp2 REAL,
+                tp3 REAL,
+                tp4 REAL,
+                tp5 REAL,
+                tp6 REAL,
                 entryOrderId TEXT NOT NULL,
                 stopOrderId TEXT NOT NULL,
                 tp1OrderId TEXT,
                 tp2OrderId TEXT,
                 tp3OrderId TEXT,
+                tp4OrderId TEXT,
+                tp5OrderId TEXT,
+                tp6OrderId TEXT,
                 trailingStopOrderId TEXT,
                 quantity REAL NOT NULL,
                 leverage INTEGER NOT NULL,
                 status TEXT NOT NULL,
+                volume_adds_margin BOOLEAN NOT NULL DEFAULT 0,
+                setup_description TEXT,
+                volume_required BOOLEAN NOT NULL DEFAULT 0,
                 createdAt TEXT NOT NULL,
                 updatedAt TEXT NOT NULL
             )
@@ -115,9 +80,9 @@ export class TradeDatabase {
     public async saveTrade(
         trade: Trade,
         orders: {
-            entryOrder: Order;
-            stopOrder: Order;
-            tpOrders: Order[];
+            entryOrder: BingXOrderResponse;
+            stopOrder: BingXOrderResponse;
+            tpOrders: BingXOrderResponse[];
         },
         quantity: number,
         leverage: number
@@ -133,18 +98,27 @@ export class TradeDatabase {
                 tp1,
                 tp2,
                 tp3,
+                tp4,
+                tp5,
+                tp6,
                 entryOrderId,
                 stopOrderId,
                 tp1OrderId,
                 tp2OrderId,
                 tp3OrderId,
+                tp4OrderId,
+                tp5OrderId,
+                tp6OrderId,
                 trailingStopOrderId,
                 quantity,
                 leverage,
                 status,
+                volume_adds_margin,
+                setup_description,
+                volume_required,
                 createdAt,
                 updatedAt
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `, [
             trade.symbol,
             trade.type,
@@ -153,15 +127,24 @@ export class TradeDatabase {
             trade.tp1,
             trade.tp2,
             trade.tp3,
+            trade.tp4,
+            trade.tp5,
+            trade.tp6,
             orders.entryOrder.data.orderId,
             orders.stopOrder.data.orderId,
             orders.tpOrders[0]?.data.orderId || null,
             orders.tpOrders[1]?.data.orderId || null,
             orders.tpOrders[2]?.data.orderId || null,
             orders.tpOrders[3]?.data.orderId || null,
+            orders.tpOrders[4]?.data.orderId || null,
+            orders.tpOrders[5]?.data.orderId || null,
+            orders.tpOrders[6]?.data.orderId || null,
             quantity,
             leverage,
             'OPEN',
+            trade.volume_adds_margin ? 1 : 0,
+            trade.setup_description,
+            trade.volume_required ? 1 : 0,
             now,
             now
         ]);
@@ -195,6 +178,9 @@ export class TradeDatabase {
             tp1OrderId?: string;
             tp2OrderId?: string;
             tp3OrderId?: string;
+            tp4OrderId?: string;
+            tp5OrderId?: string;
+            tp6OrderId?: string;
             trailingStopOrderId?: string;
         }
     ): Promise<void> {
@@ -212,6 +198,18 @@ export class TradeDatabase {
         if (orderIds.tp3OrderId) {
             updates.push('tp3OrderId = ?');
             values.push(orderIds.tp3OrderId);
+        }
+        if (orderIds.tp4OrderId) {
+            updates.push('tp4OrderId = ?');
+            values.push(orderIds.tp4OrderId);
+        }
+        if (orderIds.tp5OrderId) {
+            updates.push('tp5OrderId = ?');
+            values.push(orderIds.tp5OrderId);
+        }
+        if (orderIds.tp6OrderId) {
+            updates.push('tp6OrderId = ?');
+            values.push(orderIds.tp6OrderId);
         }
         if (orderIds.trailingStopOrderId) {
             updates.push('trailingStopOrderId = ?');

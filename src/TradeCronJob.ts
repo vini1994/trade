@@ -7,17 +7,26 @@ import { ConsoleChartService } from './ConsoleChartService';
 import { NotificationService } from './NotificationService';
 import { TradeExecutor } from './TradeExecutor';
 
+const VOLUME_MARGIN_PERCENTAGE = Number(process.env.VOLUME_MARGIN_PERCENTAGE) || 10;
 
 interface Trade {
+    id: number;
+    symbol: string;
     entry: number;
     stop: number;
-    ls: string;
+    side: 'LONG' | 'SHORT';
     tp1: number;
-    tp2: number;
-    tp3: number;
-    par: string;
+    tp2: number | null;
+    tp3: number | null;
+    tp4: number | null;
+    tp5: number | null;
+    tp6: number | null;
+    pair: string;
     volume: boolean;
     url_analysis: string;
+    volume_required: boolean;
+    volume_adds_margin: boolean;
+    setup_description: string | null;
 }
 
 
@@ -60,20 +69,25 @@ export class TradeCronJob {
 
             // Validate the trade
             const validationResult = await this.tradeValidator.validateTrade({
-                symbol: trade.par,
-                type: trade.ls as 'LONG' | 'SHORT',
+                symbol: trade.pair,
+                type: trade.side,
                 entry: trade.entry,
                 stop: trade.stop,
                 volume: trade.volume,
-                tp1: trade.tp1
+                tp1: trade.tp1,
+                volume_adds_margin: trade.volume_adds_margin,
+                setup_description: trade.setup_description,
+                volume_required: trade.volume_required
             });
 
             console.log(`\nTrade #${trades.indexOf(trade) + 1}:`);
-            console.log(`Pair: ${trade.par}`);
-            console.log(`Position: ${trade.ls}`);
+            console.log(`Pair: ${trade.pair}`);
+            console.log(`Position: ${trade.side}`);
             console.log(`Entry: ${trade.entry}`);
             console.log(`Stop: ${trade.stop}`);
-            console.log(`Take Profits: ${trade.tp1}, ${trade.tp2}, ${trade.tp3}`);
+            console.log(`Take Profits: ${[trade.tp1, trade.tp2, trade.tp3, trade.tp4, trade.tp5, trade.tp6]
+                .filter(tp => tp !== null)
+                .join(', ')}`);
             console.log('\nValidation Results:');
             console.log(`Validation: ${validationResult.isValid}`);
             console.log(`Message: ${validationResult.message}`);
@@ -87,37 +101,49 @@ export class TradeCronJob {
             // Send notification for trades with warning status
             if (validationResult.warning) {
                 await this.notificationService.sendTradeNotification({
-                    symbol: trade.par,
-                    type: trade.ls as 'LONG' | 'SHORT',
+                    symbol: trade.pair,
+                    type: trade.side,
                     entry: trade.entry,
                     stop: trade.stop,
                     takeProfits: {
                         tp1: trade.tp1,
                         tp2: trade.tp2,
-                        tp3: trade.tp3
+                        tp3: trade.tp3,
+                        tp4: trade.tp4,
+                        tp5: trade.tp5,
+                        tp6: trade.tp6
                     },
                     validation: validationResult,
                     analysisUrl: trade.url_analysis,
-                    isWarning: true
+                    isWarning: true,
+                    volume_adds_margin: trade.volume_adds_margin,
+                    setup_description: trade.setup_description,
+                    volume_required: trade.volume_required
                 });
             }
 
             if (validationResult.isValid) {
                 validCount++;
 
-                const { data: klineData, source } = await this.dataServiceManager.getKlineData(trade.par);
-                this.consoleChartService.drawChart(klineData, trade.par);
+                const { data: klineData, source } = await this.dataServiceManager.getKlineData(trade.pair);
+                this.consoleChartService.drawChart(klineData, trade.pair);
 
                 // Execute the trade using TradeExecutor
                 try {
                     const executionResult = await this.tradeExecutor.executeTrade({
-                        symbol: trade.par,
-                        type: trade.ls as 'LONG' | 'SHORT',
+                        symbol: trade.pair,
+                        type: trade.side,
                         entry: trade.entry,
                         stop: trade.stop,
                         tp1: trade.tp1,
                         tp2: trade.tp2,
-                        tp3: trade.tp3
+                        tp3: trade.tp3,
+                        tp4: trade.tp4,
+                        tp5: trade.tp5,
+                        tp6: trade.tp6,
+                        volume_adds_margin: trade.volume_adds_margin,
+                        setup_description: trade.setup_description,
+                        volume_required: trade.volume_required
                     });
 
                     if (executionResult.success) {
@@ -125,50 +151,71 @@ export class TradeCronJob {
                         console.log(`Status: ${executionResult.message}`);
                         console.log(`Leverage: ${executionResult.data?.leverage.optimalLeverage}x`);
                         console.log(`Quantity: ${executionResult.data?.quantity}`);
+                        
+                        // Volume margin info is now handled by TradeExecutor
+                        if (executionResult.data?.volumeMarginAdded) {
+                            console.log(`Volume Margin Added: ${executionResult.data.volumeMarginAdded.percentage}%`);
+                            console.log(`Base Margin: ${executionResult.data.volumeMarginAdded.baseMargin.toFixed(2)}`);
+                            console.log(`Total Margin: ${executionResult.data.volumeMarginAdded.totalMargin.toFixed(2)}`);
+                        }
+                        
                         console.log('----------------------------------------');
+
+                        // Send notification for valid trade
+                        await this.notificationService.sendTradeNotification({
+                            symbol: trade.pair,
+                            type: trade.side,
+                            entry: trade.entry,
+                            stop: trade.stop,
+                            takeProfits: {
+                                tp1: trade.tp1,
+                                tp2: trade.tp2,
+                                tp3: trade.tp3,
+                                tp4: trade.tp4,
+                                tp5: trade.tp5,
+                                tp6: trade.tp6
+                            },
+                            validation: validationResult,
+                            analysisUrl: trade.url_analysis,
+                            volume_adds_margin: trade.volume_adds_margin,
+                            setup_description: trade.setup_description,
+                            volume_required: trade.volume_required,
+                            executionResult: executionResult.success && executionResult.data ? {
+                                leverage: executionResult.data.leverage.optimalLeverage,
+                                quantity: executionResult.data.quantity,
+                                entryOrderId: executionResult.data.entryOrder.data.orderId,
+                                stopOrderId: executionResult.data.stopOrder.data.orderId,
+                                volumeMarginAdded: executionResult.data.volumeMarginAdded
+                            } : undefined,
+                            executionError: !executionResult.success ? executionResult.message : undefined
+                        });
                     } else {
                         console.error('\nTrade Execution Failed:');
                         console.error(`Error: ${executionResult.message}`);
                         console.log('----------------------------------------');
                     }
-
-                    // Send notification for valid trade
-                    await this.notificationService.sendTradeNotification({
-                        symbol: trade.par,
-                        type: trade.ls as 'LONG' | 'SHORT',
-                        entry: trade.entry,
-                        stop: trade.stop,
-                        takeProfits: {
-                            tp1: trade.tp1,
-                            tp2: trade.tp2,
-                            tp3: trade.tp3
-                        },
-                        validation: validationResult,
-                        analysisUrl: trade.url_analysis,
-                        executionResult: executionResult.success && executionResult.data ? {
-                            leverage: executionResult.data.leverage.optimalLeverage,
-                            quantity: executionResult.data.quantity,
-                            entryOrderId: executionResult.data.entryOrder.data.orderId,
-                            stopOrderId: executionResult.data.stopOrder.data.orderId
-                        } : undefined,
-                        executionError: !executionResult.success ? executionResult.message : undefined
-                    });
                 } catch (error) {
                     console.error('Failed to execute trade:', error);
                     // Send notification about execution failure
                     await this.notificationService.sendTradeNotification({
-                        symbol: trade.par,
-                        type: trade.ls as 'LONG' | 'SHORT',
+                        symbol: trade.pair,
+                        type: trade.side,
                         entry: trade.entry,
                         stop: trade.stop,
                         takeProfits: {
                             tp1: trade.tp1,
                             tp2: trade.tp2,
-                            tp3: trade.tp3
+                            tp3: trade.tp3,
+                            tp4: trade.tp4,
+                            tp5: trade.tp5,
+                            tp6: trade.tp6
                         },
                         validation: validationResult,
                         analysisUrl: trade.url_analysis,
-                        executionError: error instanceof Error ? error.message : undefined
+                        executionError: error instanceof Error ? error.message : undefined,
+                        volume_adds_margin: trade.volume_adds_margin,
+                        setup_description: trade.setup_description,
+                        volume_required: trade.volume_required
                     });
                 }
             }
