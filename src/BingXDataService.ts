@@ -5,6 +5,7 @@ import * as path from 'path';
 import crypto from 'crypto';
 import * as dotenv from 'dotenv';
 import { KlineData } from './utils/types';
+import { normalizeSymbolBingX } from './utils/bingxUtils';
 
 // Load environment variables
 dotenv.config();
@@ -96,16 +97,8 @@ export class BingXDataService {
         };
     }
 
-    private normalizeSymbol(symbol: string): string {
-        const upperSymbol = symbol.toUpperCase();
-        if (!upperSymbol.endsWith('-USDT')) {
-            return upperSymbol.replace('USDT', '') + '-USDT';
-        }
-        return upperSymbol;
-    }
-
     public async getKlineData(symbol: string): Promise<KlineData[]> {
-        const normalizedSymbol = this.normalizeSymbol(symbol);
+        const normalizedSymbol = normalizeSymbolBingX(symbol);
         const timeComponents = this.getCurrentTimeComponents();
         
         // Check cache first
@@ -139,7 +132,7 @@ export class BingXDataService {
     }
 
     public async getSymbolPrice(symbol: string): Promise<number> {
-        const normalizedSymbol = this.normalizeSymbol(symbol);
+        const normalizedSymbol = normalizeSymbolBingX(symbol);
         try {
             const path = '/openApi/swap/v2/quote/ticker';
             const params = {
@@ -161,7 +154,7 @@ export class BingXDataService {
         maxPositionValue: number;
         minPositionValue: number;
     }> {
-        const normalizedSymbol = this.normalizeSymbol(symbol);
+        const normalizedSymbol = normalizeSymbolBingX(symbol);
         try {
             const path = '/openApi/swap/v2/quote/contract';
             const params = {

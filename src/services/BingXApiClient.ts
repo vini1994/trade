@@ -83,16 +83,27 @@ export class BingXApiClient {
             hasCustomConfig: !!config
         });
     }
+    
+    private getParameters(params: Record<string, any>, timestamp:string, urlEncode:boolean): string {
+        let parameters = ""
+        for (const key in params) {
+            if (urlEncode) {
+                parameters += key + "=" + encodeURIComponent(params[key]) + "&"
+            } else {
+                parameters += key + "=" + params[key] + "&"
+            }
+        }
+        if (parameters) {
+            parameters = parameters.substring(0, parameters.length - 1)
+            parameters = parameters + "&timestamp=" + timestamp
+        } else {
+            parameters = "timestamp=" + timestamp
+        }
+        return parameters
+    }
+    
 
-    private generateSignature(timestamp: number, method: string, path: string, params: Record<string, any>): string {
-        // Sort parameters alphabetically
-        const sortedParams = Object.entries(params)
-            .sort(([a], [b]) => a.localeCompare(b))
-            .map(([key, value]) => `${key}=${value}`)
-            .join('&');
-
-        // Create signature string
-        const signatureString = `${timestamp}${method}${path}${sortedParams}`;
+    private generateSignature(signatureString: string): string {
         
         // Generate HMAC SHA256 signature
         return crypto
@@ -101,18 +112,13 @@ export class BingXApiClient {
             .digest('hex');
     }
 
-    private getHeaders(method: string, path: string, params: Record<string, any> = {}): Record<string, string> {
+    private getHeaders(): Record<string, string> {
         if (!this.useAuth) {
             return {};
         }
 
-        const timestamp = Date.now().toString();
-        const signature = this.generateSignature(parseInt(timestamp), method, path, params);
-
         return {
             'X-BX-APIKEY': this.apiKey,
-            'X-BX-SIGN': signature,
-            'X-BX-TIMESTAMP': timestamp
         };
     }
 
@@ -165,28 +171,31 @@ export class BingXApiClient {
     ): Promise<T> {
         const requestId = crypto.randomUUID();
         const timestamp = Date.now().toString();
+
+        
         
         // Add timestamp to params
-        const requestParams = { ...params, timestamp };
-        
-        // URL encode parameters
-        const encodedParams = Object.entries(requestParams)
-            .map(([key, value]) => `${key}=${encodeURIComponent(value)}`)
-            .join('&');
+        const requestParams = this.getParameters(params, timestamp, false);
 
-        const signature = this.generateSignature(parseInt(timestamp), method, path, requestParams);
+        const encodedParams = this.getParameters(params, timestamp, true);
+        
+
+        const signature = this.generateSignature(requestParams);
+
         const url = `${this.baseUrl}${path}?${encodedParams}&signature=${signature}`;
 
         logger.info(`Making ${method} request`, {
             requestId,
             path,
-            params: { ...requestParams, timestamp: '[REDACTED]' }
+            params: { requestParams },
+            headers: this.getHeaders(),
+            body: data
         });
 
         const config: AxiosRequestConfig = {
             method,
             url,
-            headers: this.getHeaders(method, path, requestParams),
+            headers: this.getHeaders(),
             data,
             transformResponse: [(data) => this.handleBigIntResponse(data)]
         };
@@ -200,7 +209,9 @@ export class BingXApiClient {
                 requestId,
                 path,
                 duration,
-                statusCode: response.status
+                statusCode: response.status,
+                responseHeaders: response.headers,
+                responseData: response.data
             });
 
             return response.data;
@@ -211,7 +222,8 @@ export class BingXApiClient {
                     path,
                     statusCode: error.response?.status,
                     errorMessage: error.response?.data?.msg || error.message,
-                    responseData: error.response?.data
+                    responseData: error.response?.data,
+                    responseHeaders: error.response?.headers
                 };
 
                 logger.error(`${method} request failed`, errorData);
@@ -231,7 +243,7 @@ export class BingXApiClient {
     }
 
     public async post<T = any>(path: string, data: Record<string, any> = {}): Promise<T> {
-        return this.makeRequest<T>('POST', path, {}, data);
+        return this.makeRequest<T>('POST', path, data);
     }
 
     public async delete<T = any>(path: string, params: Record<string, any> = {}): Promise<T> {

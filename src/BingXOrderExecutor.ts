@@ -2,37 +2,12 @@ import { BingXApiClient } from './services/BingXApiClient';
 import { LeverageCalculator } from './LeverageCalculator';
 import { PositionValidator } from './PositionValidator';
 import { TradeDatabase } from './TradeDatabase';
+import { normalizeSymbolBingX } from './utils/bingxUtils';
+import { Trade, BingXOrderResponse, TradeRecord, TradeExecutionResult } from './utils/types';
 import * as dotenv from 'dotenv';
 
 // Load environment variables
 dotenv.config();
-
-interface Trade {
-    symbol: string;
-    type: 'LONG' | 'SHORT';
-    entry: number;
-    stop: number;
-    tp1: number;
-    tp2: number;
-    tp3: number;
-}
-
-interface BingXOrderResponse {
-    code: number;
-    msg: string;
-    data: {
-        orderId: string;
-        clientOrderId: string;
-        symbol: string;
-        side: string;
-        positionSide: string;
-        type: string;
-        price: string;
-        stopPrice: string;
-        quantity: string;
-        status: string;
-    };
-}
 
 export class BingXOrderExecutor {
     private readonly apiClient: BingXApiClient;
@@ -51,25 +26,26 @@ export class BingXOrderExecutor {
         this.tradeDatabase = new TradeDatabase();
     }
 
-    private async getSymbolPrice(symbol: string): Promise<number> {
+    private async getPairPrice(pair: string): Promise<number> {
         try {
             const path = '/openApi/swap/v2/quote/ticker';
             const params = {
-                symbol: symbol
+                symbol: pair
             };
 
             const response = await this.apiClient.get<{ data: { lastPrice: string } }>(path, params);
             return parseFloat(response.data.lastPrice);
         } catch (error) {
-            console.error('Error fetching symbol price:', error);
+            console.error('Error fetching pair price:', error);
             throw error;
         }
     }
 
-    private async calculatePositionQuantity(symbol: string, leverage: number): Promise<number> {
+    private async calculatePositionQuantity(pair: string, leverage: number): Promise<number> {
         try {
+            const normalizedPair = normalizeSymbolBingX(pair);
             // Get current price
-            const currentPrice = await this.getSymbolPrice(symbol);
+            const currentPrice = await this.getPairPrice(normalizedPair);
             
             // Calculate position value based on margin and leverage
             const positionValue = this.margin * leverage;
@@ -85,8 +61,8 @@ export class BingXOrderExecutor {
         }
     }
 
-    private async placeOrder(
-        symbol: string,
+    public async placeOrder(
+        pair: string,
         side: 'BUY' | 'SELL',
         positionSide: 'LONG' | 'SHORT',
         type: 'MARKET' | 'LIMIT' | 'STOP_MARKET' | 'TRIGGER_LIMIT',
@@ -94,9 +70,10 @@ export class BingXOrderExecutor {
         stopPrice: number,
         quantity: number
     ): Promise<BingXOrderResponse> {
+        const normalizedPair = normalizeSymbolBingX(pair);
         const path = '/openApi/swap/v2/trade/order';
         const params: any = {
-            symbol: symbol,
+            symbol: normalizedPair,
             side: side,
             positionSide: positionSide,
             type: type,
@@ -119,15 +96,16 @@ export class BingXOrderExecutor {
     }
 
     private async placeTrailingStopOrder(
-        symbol: string,
+        pair: string,
         side: 'BUY' | 'SELL',
         positionSide: 'LONG' | 'SHORT',
         quantity: number,
         activationPrice: number
     ): Promise<BingXOrderResponse> {
+        const normalizedPair = normalizeSymbolBingX(pair);
         const path = '/openApi/swap/v2/trade/order';
         const params: any = {
-            symbol: symbol,
+            symbol: normalizedPair,
             side: side,
             positionSide: positionSide,
             type: 'TRAILING_STOP_MARKET',
@@ -145,143 +123,101 @@ export class BingXOrderExecutor {
 
     private async placeTakeProfitOrders(trade: Trade, quantity: number): Promise<BingXOrderResponse[]> {
         const tpOrders: BingXOrderResponse[] = [];
+        const takeProfits = [
+            { level: 1, price: trade.tp1 },
+            { level: 2, price: trade.tp2 },
+            { level: 3, price: trade.tp3 },
+            { level: 4, price: trade.tp4 },
+            { level: 5, price: trade.tp5 },
+            { level: 6, price: trade.tp6 }
+        ].filter(tp => tp.price !== null && tp.price > 0);
 
-        // Check which take profits are set
-        const hasTp1 = trade.tp1 > 0;
-        const hasTp2 = trade.tp2 > 0;
-        const hasTp3 = trade.tp3 > 0;
-
-        if (hasTp1 && !hasTp2 && !hasTp3) {
-            // Scenario 1: Only TP1 is set - 90% of position
-            const tp1Quantity = quantity * 0.9;
+        if (takeProfits.length === 0) {
+            // No take profits set, use trailing stop for entire position
             tpOrders.push(
-                await this.placeOrder(
+                await this.placeTrailingStopOrder(
                     trade.symbol,
                     trade.type === 'LONG' ? 'SELL' : 'BUY',
                     trade.type,
-                    'TRIGGER_LIMIT',
-                    trade.tp1,
-                    trade.tp1,
-                    tp1Quantity
+                    quantity,
+                    trade.entry // Use entry price as activation price
                 )
             );
+            return tpOrders;
+        }
 
-            // Add trailing stop for remaining 10%
-            const remainingQuantity = quantity - tp1Quantity;
-            if (remainingQuantity > 0) {
+        // Calculate quantities based on number of take profits
+        let remainingQuantity = quantity;
+        const tpQuantities: number[] = [];
+
+        if (takeProfits.length === 1) {
+            // Single take profit: 90% of position
+            tpQuantities.push(quantity * 0.9);
+        } else if (takeProfits.length === 2) {
+            // Two take profits: 50% and 90% of remaining
+            tpQuantities.push(quantity * 0.5);
+            tpQuantities.push(quantity * 0.45); // 90% of remaining 50%
+        } else if (takeProfits.length === 3) {
+            // Three take profits: 50%, 70% of remaining, 90% of remaining
+            tpQuantities.push(quantity * 0.5);
+            tpQuantities.push(quantity * 0.35); // 70% of remaining 50%
+            tpQuantities.push(quantity * 0.15); // 90% of remaining 15%
+        } else if (takeProfits.length === 4) {
+            // Four take profits: 40%, 60% of remaining, 80% of remaining, 90% of remaining
+            tpQuantities.push(quantity * 0.4);
+            tpQuantities.push(quantity * 0.24); // 60% of remaining 60%
+            tpQuantities.push(quantity * 0.24); // 80% of remaining 30%
+            tpQuantities.push(quantity * 0.12); // 90% of remaining 12%
+        } else if (takeProfits.length === 5) {
+            // Five take profits: 30%, 45% of remaining, 60% of remaining, 75% of remaining, 90% of remaining
+            tpQuantities.push(quantity * 0.3);
+            tpQuantities.push(quantity * 0.21); // 45% of remaining 70%
+            tpQuantities.push(quantity * 0.21); // 60% of remaining 49%
+            tpQuantities.push(quantity * 0.15); // 75% of remaining 28%
+            tpQuantities.push(quantity * 0.13); // 90% of remaining 15%
+        } else if (takeProfits.length === 6) {
+            // Six take profits: 25%, 40% of remaining, 55% of remaining, 70% of remaining, 85% of remaining, 95% of remaining
+            tpQuantities.push(quantity * 0.25);
+            tpQuantities.push(quantity * 0.18); // 40% of remaining 75%
+            tpQuantities.push(quantity * 0.18); // 55% of remaining 57%
+            tpQuantities.push(quantity * 0.15); // 70% of remaining 39%
+            tpQuantities.push(quantity * 0.12); // 85% of remaining 24%
+            tpQuantities.push(quantity * 0.12); // 95% of remaining 12%
+        }
+
+        // Place take profit orders
+        for (let i = 0; i < takeProfits.length; i++) {
+            const tp = takeProfits[i];
+            const tpQuantity = tpQuantities[i];
+            
+            if (tpQuantity > 0) {
                 tpOrders.push(
-                    await this.placeTrailingStopOrder(
+                    await this.placeOrder(
                         trade.symbol,
                         trade.type === 'LONG' ? 'SELL' : 'BUY',
                         trade.type,
-                        remainingQuantity,
-                        trade.tp1 // Use TP1 as activation price
+                        'TRIGGER_LIMIT',
+                        tp.price!,
+                        tp.price!,
+                        tpQuantity
                     )
                 );
+                remainingQuantity -= tpQuantity;
             }
-        } else if (hasTp1 && hasTp2 && !hasTp3) {
-            // Scenario 2: TP1 and TP2 are set
-            // TP1: 50% of total position
-            const tp1Quantity = quantity * 0.5;
+        }
+
+        // Add trailing stop for remaining quantity if any
+        if (remainingQuantity > 0) {
+            const lastTp = takeProfits[takeProfits.length - 1];
             tpOrders.push(
-                await this.placeOrder(
+                await this.placeTrailingStopOrder(
                     trade.symbol,
                     trade.type === 'LONG' ? 'SELL' : 'BUY',
                     trade.type,
-                    'TRIGGER_LIMIT',
-                    trade.tp1,
-                    trade.tp1,
-                    tp1Quantity
+                    remainingQuantity,
+                    lastTp.price! // Use last take profit as activation price
                 )
             );
-
-            // TP2: 90% of remaining position (after TP1)
-            const remainingAfterTp1 = quantity - tp1Quantity;
-            const tp2Quantity = remainingAfterTp1 * 0.9;
-            tpOrders.push(
-                await this.placeOrder(
-                    trade.symbol,
-                    trade.type === 'LONG' ? 'SELL' : 'BUY',
-                    trade.type,
-                    'TRIGGER_LIMIT',
-                    trade.tp2,
-                    trade.tp2,
-                    tp2Quantity
-                )
-            );
-
-            // Add trailing stop for remaining quantity
-            const remainingQuantity = remainingAfterTp1 - tp2Quantity;
-            if (remainingQuantity > 0) {
-                tpOrders.push(
-                    await this.placeTrailingStopOrder(
-                        trade.symbol,
-                        trade.type === 'LONG' ? 'SELL' : 'BUY',
-                        trade.type,
-                        remainingQuantity,
-                        trade.tp2 // Use TP2 as activation price
-                    )
-                );
-            }
-        } else if (hasTp1 && hasTp2 && hasTp3) {
-            // Scenario 3: All TPs are set
-            // TP1: 50% of total position
-            const tp1Quantity = quantity * 0.5;
-            tpOrders.push(
-                await this.placeOrder(
-                    trade.symbol,
-                    trade.type === 'LONG' ? 'SELL' : 'BUY',
-                    trade.type,
-                    'TRIGGER_LIMIT',
-                    trade.tp1,
-                    trade.tp1,
-                    tp1Quantity
-                )
-            );
-
-            // TP2: 70% of remaining position (after TP1)
-            const remainingAfterTp1 = quantity - tp1Quantity;
-            const tp2Quantity = remainingAfterTp1 * 0.7;
-            tpOrders.push(
-                await this.placeOrder(
-                    trade.symbol,
-                    trade.type === 'LONG' ? 'SELL' : 'BUY',
-                    trade.type,
-                    'TRIGGER_LIMIT',
-                    trade.tp2,
-                    trade.tp2,
-                    tp2Quantity
-                )
-            );
-
-            // TP3: 90% of remaining position (after TP1 and TP2)
-            const remainingAfterTp2 = remainingAfterTp1 - tp2Quantity;
-            const tp3Quantity = remainingAfterTp2 * 0.9;
-            tpOrders.push(
-                await this.placeOrder(
-                    trade.symbol,
-                    trade.type === 'LONG' ? 'SELL' : 'BUY',
-                    trade.type,
-                    'TRIGGER_LIMIT',
-                    trade.tp3,
-                    trade.tp3,
-                    tp3Quantity
-                )
-            );
-
-            // Add trailing stop for remaining quantity
-            const remainingQuantity = remainingAfterTp2 - tp3Quantity;
-            if (remainingQuantity > 0) {
-                tpOrders.push(
-                    await this.placeTrailingStopOrder(
-                        trade.symbol,
-                        trade.type === 'LONG' ? 'SELL' : 'BUY',
-                        trade.type,
-                        remainingQuantity,
-                        trade.tp3 // Use TP3 as activation price
-                    )
-                );
-            }
         }
 
         return tpOrders;
@@ -298,9 +234,14 @@ export class BingXOrderExecutor {
             stopLossPercentage: number;
         };
         quantity: number;
-        tradeRecord: any;
+        tradeRecord: TradeRecord;
     }> {
         try {
+            // Validate that at least tp1 is set
+            if (!trade.tp1) {
+                throw new Error('At least tp1 must be set for a trade');
+            }
+
             // Check for existing position
             const { hasPosition, message } = await this.positionValidator.hasOpenPosition(trade.symbol, trade.type);
             
@@ -380,10 +321,10 @@ export class BingXOrderExecutor {
         }
     }
 
-    public async cancelOrder(symbol: string, orderId: string): Promise<void> {
+    public async cancelOrder(pair: string, orderId: string): Promise<void> {
         const path = '/openApi/swap/v2/trade/cancelOrder';
         const params = {
-            symbol: symbol,
+            symbol: pair,
             orderId: orderId
         };
 
