@@ -1,49 +1,59 @@
 import { BinanceDataService } from './BinanceDataService';
 import { BingXDataService } from './BingXDataService';
+import { BinanceFuturesDataService } from './BinanceFuturesDataService';
 import { KlineData } from './utils/types';
 
 export class DataServiceManager {
-    private binanceService: BinanceDataService;
+    private binanceFuturesService: BinanceFuturesDataService;
     private bingxService: BingXDataService;
+    private binanceService: BinanceDataService;
 
     constructor() {
-        this.binanceService = new BinanceDataService();
+        this.binanceFuturesService = new BinanceFuturesDataService();
         this.bingxService = new BingXDataService();
+        this.binanceService = new BinanceDataService();
     }
 
-    public async getKlineData(symbol: string): Promise<{ data: KlineData[]; source: 'binance' | 'bingx' }> {
+    public async getKlineData(symbol: string): Promise<{ data: KlineData[]; source: 'binance_futures' | 'bingx' | 'binance' }> {
+        // Try Binance Futures first
         try {
-            console.log(`Attempting to fetch data from Binance for ${symbol}...`);
-            const binanceData = await this.binanceService.getKlineData(symbol);
-    
-            // Sort by close time in descending order (most recent first)
-            const sortedData = [...binanceData].sort((a, b) => b.closeTime - a.closeTime);
-
-            console.log('Successfully fetched data from Binance');
-            return { data: sortedData, source: 'binance' };
-        } catch (error: any) {
-            console.log(`Failed to fetch data from Binance: ${error.message}`);
-            console.log(`Attempting to fetch data from BingX for ${symbol}...`);
+            console.log(`Attempting to fetch data from Binance Futures for ${symbol}...`);
+            const futuresData = await this.binanceFuturesService.getKlineData(symbol);
+            const sortedData = [...futuresData].sort((a, b) => b.closeTime - a.closeTime);
+            console.log('Successfully fetched data from Binance Futures');
+            return { data: sortedData, source: 'binance_futures' };
+        } catch (futuresError: any) {
+            console.log(`Failed to fetch data from Binance Futures: ${futuresError.message}`);
             
+            // Try BingX next
             try {
+                console.log(`Attempting to fetch data from BingX for ${symbol}...`);
                 const bingxData = await this.bingxService.getKlineData(symbol);
-        
-                // Sort by close time in descending order (most recent first)
                 const sortedData = [...bingxData].sort((a, b) => b.closeTime - a.closeTime);
-
-
                 console.log('Successfully fetched data from BingX');
                 return { data: sortedData, source: 'bingx' };
             } catch (bingxError: any) {
-                console.error(`Failed to fetch data from both services for ${symbol}`);
-                console.error('Binance error:', error);
-                console.error('BingX error:', bingxError);
-                throw new Error(`Failed to fetch data for ${symbol} from both services`);
+                console.log(`Failed to fetch data from BingX: ${bingxError.message}`);
+                
+                // Finally try Binance Spot
+                try {
+                    console.log(`Attempting to fetch data from Binance Spot for ${symbol}...`);
+                    const binanceData = await this.binanceService.getKlineData(symbol);
+                    const sortedData = [...binanceData].sort((a, b) => b.closeTime - a.closeTime);
+                    console.log('Successfully fetched data from Binance Spot');
+                    return { data: sortedData, source: 'binance' };
+                } catch (binanceError: any) {
+                    console.error(`Failed to fetch data from all services for ${symbol}`);
+                    console.error('Binance Futures error:', futuresError);
+                    console.error('BingX error:', bingxError);
+                    console.error('Binance Spot error:', binanceError);
+                    throw new Error(`Failed to fetch data for ${symbol} from all services`);
+                }
             }
         }
     }
 
-    public async getKlineDataWithRetry(symbol: string, maxRetries: number = 3): Promise<{ data: KlineData[]; source: 'binance' | 'bingx' }> {
+    public async getKlineDataWithRetry(symbol: string, maxRetries: number = 3): Promise<{ data: KlineData[]; source: 'binance_futures' | 'bingx' | 'binance' }> {
         let lastError: Error | null = null;
         
         for (let attempt = 1; attempt <= maxRetries; attempt++) {
