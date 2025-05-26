@@ -15,11 +15,13 @@ export class BingXOrderExecutor {
     private readonly positionValidator: PositionValidator;
     private readonly tradeDatabase: TradeDatabase;
     private readonly margin: number;
+    private readonly volumeMarginPercentage: number;
 
     constructor() {
         // Initialize API client
         this.apiClient = new BingXApiClient();
         this.margin = parseFloat(process.env.BINGX_MARGIN || '100');
+        this.volumeMarginPercentage = parseFloat(process.env.VOLUME_MARGIN_PERCENTAGE || '0');
 
         this.leverageCalculator = new LeverageCalculator();
         this.positionValidator = new PositionValidator();
@@ -41,14 +43,23 @@ export class BingXOrderExecutor {
         }
     }
 
-    private async calculatePositionQuantity(pair: string, leverage: number): Promise<number> {
+    private async calculatePositionQuantity(pair: string, leverage: number, trade?: Trade): Promise<number> {
         try {
             const normalizedPair = normalizeSymbolBingX(pair);
             // Get current price
             const currentPrice = await this.getPairPrice(normalizedPair);
             
-            // Calculate position value based on margin and leverage
-            const positionValue = this.margin * leverage;
+            // Calculate base margin
+            let totalMargin = this.margin;
+            
+            // Add volume-based margin if trade has volume_adds_margin
+            if (trade?.volume_adds_margin) {
+                const additionalMargin = this.margin * (this.volumeMarginPercentage / 100);
+                totalMargin += additionalMargin;
+            }
+            
+            // Calculate position value based on total margin and leverage
+            const positionValue = totalMargin * leverage;
             
             // Calculate quantity based on position value and current price
             const quantity = positionValue / currentPrice;
@@ -266,8 +277,8 @@ export class BingXOrderExecutor {
                 trade.type
             );
 
-            // Calculate position quantity based on margin and leverage
-            const quantity = await this.calculatePositionQuantity(trade.symbol, leverageInfo.optimalLeverage);
+            // Calculate position quantity based on margin and leverage, passing the trade object
+            const quantity = await this.calculatePositionQuantity(trade.symbol, leverageInfo.optimalLeverage, trade);
             console.log(`Calculated position quantity: ${quantity} based on margin ${this.margin} USDT and leverage ${leverageInfo.optimalLeverage}x`);
 
             // Place entry order (MARKET)
