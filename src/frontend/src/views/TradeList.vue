@@ -12,42 +12,59 @@
     <div class="card shadow-sm">
       <div class="table-responsive">
         <table class="table table-hover mb-0">
-          <thead class="table-light">
+          <thead class="table-dark">
             <tr>
-              <th class="px-3 py-2">Pair</th>
+              <th class="px-3 py-2">Pair & Setup</th>
               <th class="px-3 py-2">Type</th>
               <th class="px-3 py-2">Entry</th>
               <th class="px-3 py-2">Stop</th>
-              <th class="px-3 py-2">TP1</th>
-              <th class="px-3 py-2">TP2</th>
-              <th class="px-3 py-2">TP3</th>
-              <th class="px-3 py-2">Volume</th>
+              <th class="px-3 py-2">Take Profits</th>
+              <th class="px-3 py-2">Volume Flags</th>
               <th class="px-3 py-2">Analysis</th>
               <th class="px-3 py-2">Actions</th>
             </tr>
           </thead>
           <tbody>
             <tr v-for="(trade, index) in trades" :key="index">
-              <td class="px-3 py-2">{{ trade.par }}</td>
+              <td class="px-3 py-2">
+                <div class="d-flex flex-column">
+                  <strong>{{ trade.pair }}</strong>
+                  <small v-if="trade.setup_description" class="text-muted" style="max-width: 200px; white-space: normal;">
+                    {{ trade.setup_description }}
+                  </small>
+                </div>
+              </td>
               <td class="px-3 py-2">
                 <span
                   :class="{
-                    'badge bg-success': trade.ls === 'LONG',
-                    'badge bg-danger': trade.ls === 'SHORT'
+                    'badge bg-success': trade.side === 'LONG',
+                    'badge bg-danger': trade.side === 'SHORT'
                   }"
                 >
-                  {{ trade.ls }}
+                  {{ trade.side }}
                 </span>
               </td>
               <td class="px-3 py-2">{{ trade.entry }}</td>
               <td class="px-3 py-2">{{ trade.stop }}</td>
-              <td class="px-3 py-2">{{ trade.tp1 }}</td>
-              <td class="px-3 py-2">{{ trade.tp2 || '-' }}</td>
-              <td class="px-3 py-2">{{ trade.tp3 || '-' }}</td>
               <td class="px-3 py-2">
-                <span :class="trade.volume ? 'badge bg-success' : 'badge bg-secondary'">
-                  {{ trade.volume ? 'Yes' : 'No' }}
-                </span>
+                <div class="d-flex flex-wrap gap-1">
+                  <template v-for="(tp, index) in getFormattedTPs(trade)" :key="index">
+                    <span class="badge bg-info">
+                      {{ tp.label }}: {{ tp.value }}
+                    </span>
+                  </template>
+                  <span v-if="getFormattedTPs(trade).length === 0" class="text-muted">-</span>
+                </div>
+              </td>
+              <td class="px-3 py-2">
+                <div class="d-flex flex-column gap-1">
+                  <span :class="trade.volume_required ? 'badge bg-success' : 'badge bg-secondary'">
+                    {{ trade.volume_required ? 'Volume Required' : 'Volume Optional' }}
+                  </span>
+                  <span :class="trade.volume_adds_margin ? 'badge bg-success' : 'badge bg-secondary'">
+                    {{ trade.volume_adds_margin ? 'Volume Adds Margin' : 'No Volume Margin' }}
+                  </span>
+                </div>
               </td>
               <td class="px-3 py-2">
                 <a 
@@ -83,21 +100,38 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 
 interface Trade {
   entry: number
   stop: number
-  ls: 'LONG' | 'SHORT'
-  tp1: number
+  side: 'LONG' | 'SHORT'
+  tp1: number | null
   tp2: number | null
   tp3: number | null
-  par: string
-  volume: boolean
+  tp4: number | null
+  tp5: number | null
+  tp6: number | null
+  pair: string
+  volume_required: boolean
+  volume_adds_margin: boolean
+  setup_description: string | null
   url_analysis: string
 }
 
 const trades = ref<Trade[]>([])
+
+// Helper function to get formatted TPs for a trade
+const getFormattedTPs = (trade: Trade) => {
+  const tps = []
+  for (let i = 1; i <= 6; i++) {
+    const tp = trade[`tp${i}` as keyof Trade] as number | null
+    if (tp !== null && tp !== undefined) {
+      tps.push({ label: `TP${i}`, value: tp })
+    }
+  }
+  return tps
+}
 
 // Load trades from API
 const loadTrades = async () => {

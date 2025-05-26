@@ -27,10 +27,13 @@
                 </div>
                 <div class="mt-2">
                   <strong>Take Profits:</strong>
-                  <div class="d-flex gap-3">
-                    <span>TP1: {{ trade.takeProfits.tp1 }}</span>
+                  <div class="d-flex flex-wrap gap-3">
+                    <span v-if="trade.takeProfits.tp1">TP1: {{ trade.takeProfits.tp1 }}</span>
                     <span v-if="trade.takeProfits.tp2">TP2: {{ trade.takeProfits.tp2 }}</span>
                     <span v-if="trade.takeProfits.tp3">TP3: {{ trade.takeProfits.tp3 }}</span>
+                    <span v-if="trade.takeProfits.tp4">TP4: {{ trade.takeProfits.tp4 }}</span>
+                    <span v-if="trade.takeProfits.tp5">TP5: {{ trade.takeProfits.tp5 }}</span>
+                    <span v-if="trade.takeProfits.tp6">TP6: {{ trade.takeProfits.tp6 }}</span>
                   </div>
                 </div>
                 <div class="mt-2">
@@ -41,13 +44,39 @@
                     <span v-if="trade.isWarning" class="badge bg-warning text-dark">
                       ⚠️ Warning
                     </span>
+                    <span class="badge" :class="trade.volume_required ? 'bg-danger' : 'bg-success'">
+                      {{ trade.volume_required ? 'Volume Required' : 'Volume Optional' }}
+                    </span>
+                    <span class="badge" :class="trade.volume_adds_margin ? 'bg-success' : 'bg-secondary'">
+                      {{ trade.volume_adds_margin ? 'Adds Margin' : 'No Extra Margin' }}
+                    </span>
                     <small class="text-muted">{{ trade.validation.message }}</small>
                   </div>
                   <div class="mt-1">
                     <small class="text-muted">Entry Analysis: {{ trade.validation.entryAnalysis.message }}</small>
                   </div>
                   <div class="mt-1">
-                    <small class="text-muted">Volume: {{ trade.validation.volumeAnalysis.currentVolume.toFixed(2) }} (std: {{ trade.validation.volumeAnalysis.stdBar.toFixed(2) }})</small>
+                    <small class="text-muted">
+                      Volume: {{ trade.validation.volumeAnalysis.currentVolume.toFixed(2) }} 
+                      (std: {{ trade.validation.volumeAnalysis.stdBar.toFixed(2) }})
+                      <span class="ms-1" :class="{
+                        'text-danger': trade.validation.volumeAnalysis.color === 'RED',
+                        'text-warning': trade.validation.volumeAnalysis.color === 'ORANGE',
+                        'text-info': trade.validation.volumeAnalysis.color === 'YELLOW',
+                        'text-secondary': trade.validation.volumeAnalysis.color === 'WHITE',
+                        'text-primary': trade.validation.volumeAnalysis.color === 'BLUE'
+                      }">
+                        [{{ trade.validation.volumeAnalysis.color }}]
+                      </span>
+                    </small>
+                  </div>
+                  <div v-if="trade.setup_description" class="mt-2">
+                    <div class="card bg-light">
+                      <div class="card-body p-2">
+                        <h6 class="card-title mb-1">Setup Description</h6>
+                        <small class="text-muted">{{ trade.setup_description }}</small>
+                      </div>
+                    </div>
                   </div>
                 </div>
 
@@ -64,6 +93,20 @@
                         <div class="d-flex justify-content-between">
                           <small>Quantity:</small>
                           <small class="fw-bold">{{ trade.executionResult.quantity.toFixed(4) }}</small>
+                        </div>
+                        <div v-if="trade.volume_adds_margin && trade.executionResult.volumeMarginAdded" class="mt-2 pt-2 border-top">
+                          <div class="d-flex justify-content-between">
+                            <small>Volume Margin:</small>
+                            <small class="fw-bold text-success">+{{ trade.executionResult.volumeMarginAdded.percentage }}%</small>
+                          </div>
+                          <div class="d-flex justify-content-between">
+                            <small>Base Margin:</small>
+                            <small class="fw-bold">{{ trade.executionResult.volumeMarginAdded.baseMargin.toFixed(2) }}</small>
+                          </div>
+                          <div class="d-flex justify-content-between">
+                            <small>Total Margin:</small>
+                            <small class="fw-bold">{{ trade.executionResult.volumeMarginAdded.totalMargin.toFixed(2) }}</small>
+                          </div>
                         </div>
                         <div class="d-flex justify-content-between">
                           <small>Entry Order:</small>
@@ -106,9 +149,12 @@
 import { ref, onMounted, onUnmounted } from 'vue'
 
 interface TakeProfits {
-  tp1: number
-  tp2: number | null
-  tp3: number | null
+  tp1: number | null;
+  tp2: number | null;
+  tp3: number | null;
+  tp4: number | null;
+  tp5: number | null;
+  tp6: number | null;
 }
 
 interface VolumeAnalysis {
@@ -138,6 +184,11 @@ interface ExecutionResult {
   quantity: number;
   entryOrderId: string;
   stopOrderId: string;
+  volumeMarginAdded?: {
+    percentage: number;
+    baseMargin: number;
+    totalMargin: number;
+  };
 }
 
 interface Trade {
@@ -152,6 +203,9 @@ interface Trade {
   executionError?: string
   timestamp: string
   isWarning?: boolean
+  volume_required: boolean
+  volume_adds_margin: boolean
+  setup_description: string | null
 }
 
 const trades = ref<Trade[]>([])
@@ -281,5 +335,42 @@ onUnmounted(() => {
 
 .bi-exclamation-triangle-fill {
   color: var(--bs-danger);
+}
+
+/* Volume color styles */
+.text-danger {
+  color: var(--bs-danger) !important;
+}
+
+.text-warning {
+  color: var(--bs-warning) !important;
+}
+
+.text-info {
+  color: var(--bs-info) !important;
+}
+
+.text-secondary {
+  color: var(--bs-secondary) !important;
+}
+
+.text-primary {
+  color: var(--bs-primary) !important;
+}
+
+/* Setup description card styles */
+.card.bg-light .card-title {
+  font-size: 0.9rem;
+  color: var(--bs-secondary);
+  margin-bottom: 0.5rem;
+}
+
+[data-bs-theme="dark"] .card.bg-light {
+  background-color: rgba(255, 255, 255, 0.05) !important;
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+[data-bs-theme="dark"] .card.bg-light .card-title {
+  color: var(--bs-light);
 }
 </style> 

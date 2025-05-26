@@ -9,7 +9,7 @@
           <div class="mb-3">
             <label class="form-label">Pair</label>
             <input
-              v-model="tradeData.par"
+              v-model="tradeData.pair"
               type="text"
               class="form-control"
               required
@@ -18,7 +18,7 @@
           <div class="mb-3">
             <label class="form-label">Type</label>
             <select
-              v-model="tradeData.ls"
+              v-model="tradeData.side"
               class="form-select"
               required
             >
@@ -53,7 +53,6 @@
               type="number"
               step="any"
               class="form-control"
-              required
             />
           </div>
           <div class="mb-3">
@@ -75,17 +74,66 @@
             />
           </div>
           <div class="mb-3">
+            <label class="form-label">TP4</label>
+            <input
+              v-model.number="tradeData.tp4"
+              type="number"
+              step="any"
+              class="form-control"
+            />
+          </div>
+          <div class="mb-3">
+            <label class="form-label">TP5</label>
+            <input
+              v-model.number="tradeData.tp5"
+              type="number"
+              step="any"
+              class="form-control"
+            />
+          </div>
+          <div class="mb-3">
+            <label class="form-label">TP6</label>
+            <input
+              v-model.number="tradeData.tp6"
+              type="number"
+              step="any"
+              class="form-control"
+            />
+          </div>
+          <div class="mb-3">
             <div class="form-check">
               <input
-                v-model="tradeData.volume"
+                v-model="tradeData.volume_required"
                 type="checkbox"
                 class="form-check-input"
-                id="volumeCheck"
+                id="volumeRequiredCheck"
               />
-              <label class="form-check-label" for="volumeCheck">
-                Volume Analysis
+              <label class="form-check-label" for="volumeRequiredCheck">
+                Volume Required
               </label>
             </div>
+          </div>
+          <div class="mb-3">
+            <div class="form-check">
+              <input
+                v-model="tradeData.volume_adds_margin"
+                type="checkbox"
+                class="form-check-input"
+                id="volumeMarginCheck"
+              />
+              <label class="form-check-label" for="volumeMarginCheck">
+                Volume Adds Margin
+              </label>
+            </div>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Setup Description</label>
+            <textarea
+              v-model="tradeData.setup_description"
+              class="form-control"
+              rows="3"
+              placeholder="Describe the trading setup..."
+            ></textarea>
           </div>
           <div class="mb-3">
             <label class="form-label">Analysis URL</label>
@@ -121,15 +169,20 @@ import { ref, onMounted, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
 interface Trade {
-  entry: number  // float
-  stop: number   // float
-  ls: 'LONG' | 'SHORT'
-  tp1: number    // float
-  tp2: number | null  // float
-  tp3: number | null  // float
-  par: string
-  volume: boolean
-  url_analysis: string
+  entry: number;
+  stop: number;
+  side: 'LONG' | 'SHORT';
+  tp1: number | null;
+  tp2: number | null;
+  tp3: number | null;
+  tp4: number | null;
+  tp5: number | null;
+  tp6: number | null;
+  pair: string;
+  volume_required: boolean;
+  volume_adds_margin: boolean;
+  setup_description: string | null;
+  url_analysis: string;
 }
 
 const route = useRoute()
@@ -138,12 +191,17 @@ const router = useRouter()
 const tradeData = ref<Trade>({
   entry: 0,
   stop: 0,
-  ls: 'LONG',
-  tp1: 0,
+  side: 'LONG',
+  tp1: null,
   tp2: null,
   tp3: null,
-  par: '',
-  volume: false,
+  tp4: null,
+  tp5: null,
+  tp6: null,
+  pair: '',
+  volume_required: false,
+  volume_adds_margin: false,
+  setup_description: null,
   url_analysis: ''
 })
 
