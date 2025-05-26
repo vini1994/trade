@@ -10,6 +10,9 @@ export interface Trade {
     tp1: number;
     tp2: number | null;
     tp3: number | null;
+    tp4: number | null;
+    tp5: number | null;
+    tp6: number | null;
     par: string;
     volume: boolean;
     url_analysis: string;

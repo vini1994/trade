@@ -6,9 +6,12 @@ interface TradeNotification {
     entry: number;
     stop: number;
     takeProfits: {
-        tp1: number;
-        tp2: number;
-        tp3: number;
+        tp1: number | null;
+        tp2: number | null;
+        tp3: number | null;
+        tp4: number | null;
+        tp5: number | null;
+        tp6: number | null;
     };
     validation: {
         isValid: boolean;
@@ -16,9 +19,15 @@ interface TradeNotification {
         volumeAnalysis: {
             color: string;
             stdBar: number;
+            currentVolume: number;
+            mean: number;
+            std: number;
         };
         entryAnalysis: {
             currentClose: number;
+            canEnter: boolean;
+            hasClosePriceBeforeEntry: boolean;
+            message: string;
         };
     };
     analysisUrl: string;
@@ -27,10 +36,18 @@ interface TradeNotification {
         quantity: number;
         entryOrderId: string;
         stopOrderId: string;
+        volumeMarginAdded?: {
+            percentage: number;
+            baseMargin: number;
+            totalMargin: number;
+        };
     };
     executionError?: string;
     timestamp: string;
     isWarning?: boolean;
+    volume_required: boolean;
+    volume_adds_margin: boolean;
+    setup_description: string | null;
 }
 
 export class NotificationService {

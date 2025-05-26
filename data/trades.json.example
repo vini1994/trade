@@ -2,34 +2,71 @@
   {
     "entry": 0.5085,
     "stop": 0.4285,
-    "ls": "LONG",
+    "side": "LONG",
     "tp1": 0.5899,
     "tp2": null,
     "tp3": null,
-    "par": "UXLINKUSDT",
-    "volume": false,
-    "url_analysis": "https://www.tradingview.com/x/rZpeFA4Q/"
+    "pair": "UXLINKUSDT",
+    "no_volume_invalidates_trade": false,
+    "volume_adds_margin": false,
+    "setup_description": null,
+    "url_analysis": "https://www.tradingview.com/x/rZpeFA4Q/",
+    "volume_required": false
   },
   {
     "entry": 0.3992,
     "stop": 0.4847,
-    "ls": "SHORT",
+    "side": "SHORT",
     "tp1": 0.3085,
     "tp2": null,
     "tp3": null,
-    "par": "UXLINKUSDT",
-    "volume": false,
-    "url_analysis": "https://www.tradingview.com/x/rZpeFA4Q/"
+    "pair": "UXLINKUSDT",
+    "no_volume_invalidates_trade": false,
+    "volume_adds_margin": false,
+    "setup_description": null,
+    "url_analysis": "https://www.tradingview.com/x/rZpeFA4Q/",
+    "volume_required": false
   },
   {
     "entry": 2.3063,
     "stop": 2.2628,
-    "ls": "LONG",
+    "side": "LONG",
     "tp1": 2.3467,
     "tp2": null,
     "tp3": null,
-    "par": "XRPUSDT",
-    "volume": false,
-    "url_analysis": "https://br.tradingview.com/chart/qNmjxXtq/"
+    "pair": "XRPUSDT",
+    "no_volume_invalidates_trade": false,
+    "volume_adds_margin": false,
+    "setup_description": null,
+    "url_analysis": "https://br.tradingview.com/chart/qNmjxXtq/",
+    "volume_required": false
+  },
+  {
+    "entry": 109582.3,
+    "stop": 108842,
+    "side": "LONG",
+    "tp1": 110322,
+    "tp2": null,
+    "tp3": null,
+    "pair": "BTCUSDT",
+    "no_volume_invalidates_trade": false,
+    "volume_adds_margin": false,
+    "setup_description": null,
+    "url_analysis": "https://br.tradingview.com/chart/qNmjxXtq/",
+    "volume_required": false
+  },
+  {
+    "entry": 109105,
+    "stop": 109468,
+    "side": "SHORT",
+    "tp1": 107800,
+    "tp2": null,
+    "tp3": null,
+    "pair": "BTCUSDT",
+    "no_volume_invalidates_trade": false,
+    "volume_adds_margin": true,
+    "setup_description": "m_analises",
+    "url_analysis": "https://br.tradingview.com/chart/qNmjxXtq/",
+    "volume_required": false
   }
 ]
