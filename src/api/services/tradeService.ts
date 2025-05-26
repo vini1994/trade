@@ -17,8 +17,17 @@ export interface Trade {
 
 export class TradeService {
     async readTrades(): Promise<Trade[]> {
-        const data = await fs.readFile(TRADES_FILE, 'utf-8');
-        return JSON.parse(data);
+        try {
+            const data = await fs.readFile(TRADES_FILE, 'utf-8');
+            return JSON.parse(data);
+        } catch (error) {
+            // If file doesn't exist, create it with an empty array
+            if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+                await this.writeTrades([]);
+                return [];
+            }
+            throw error;
+        }
     }
 
     async writeTrades(trades: Trade[]): Promise<void> {
