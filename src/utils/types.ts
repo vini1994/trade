@@ -31,17 +31,19 @@ export interface Trade {
 export interface BingXOrderResponse {
     code: number;
     msg: string;
-    data: {
-        orderId: string;
-        clientOrderId: string;
-        symbol: string;
-        side: string;
-        positionSide: string;
-        type: string;
-        price: string;
-        stopPrice: string;
-        quantity: string;
-        status: string;
+    data: { 
+        order:{
+            orderId: string;
+            clientOrderId: string;
+            symbol: string;
+            side: string;
+            positionSide: string;
+            type: string;
+            price: string;
+            stopPrice: string;
+            quantity: string;
+            status: string;
+        }
     };
 }
 

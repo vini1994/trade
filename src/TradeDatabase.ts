@@ -75,6 +75,24 @@ export class TradeDatabase {
                 FOREIGN KEY (tradeId) REFERENCES trades(id)
             )
         `);
+
+        await this.db.exec(`
+            CREATE TABLE IF NOT EXISTS trade_logs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                tradeId INTEGER NOT NULL,
+                timestamp TEXT NOT NULL,
+                pair TEXT NOT NULL,
+                side TEXT NOT NULL,
+                positionSide TEXT NOT NULL,
+                type TEXT NOT NULL,
+                price REAL,
+                stopPrice REAL,
+                quantity REAL,
+                orderResponse TEXT NOT NULL,
+                createdAt TEXT NOT NULL,
+                FOREIGN KEY (tradeId) REFERENCES trades(id)
+            )
+        `);
     }
 
     public async saveTrade(
@@ -130,15 +148,15 @@ export class TradeDatabase {
             trade.tp4,
             trade.tp5,
             trade.tp6,
-            orders.entryOrder.data.orderId,
-            orders.stopOrder.data.orderId,
-            orders.tpOrders[0]?.data.orderId || null,
-            orders.tpOrders[1]?.data.orderId || null,
-            orders.tpOrders[2]?.data.orderId || null,
-            orders.tpOrders[3]?.data.orderId || null,
-            orders.tpOrders[4]?.data.orderId || null,
-            orders.tpOrders[5]?.data.orderId || null,
-            orders.tpOrders[6]?.data.orderId || null,
+            orders.entryOrder.data.order.orderId,
+            orders.stopOrder.data.order.orderId,
+            orders.tpOrders[0]?.data.order.orderId || null,
+            orders.tpOrders[1]?.data.order.orderId || null,
+            orders.tpOrders[2]?.data.order.orderId || null,
+            orders.tpOrders[3]?.data.order.orderId || null,
+            orders.tpOrders[4]?.data.order.orderId || null,
+            orders.tpOrders[5]?.data.order.orderId || null,
+            orders.tpOrders[6]?.data.order.orderId || null,
             quantity,
             leverage,
             'OPEN',
@@ -175,43 +193,53 @@ export class TradeDatabase {
     public async updateOrderIds(
         id: number,
         orderIds: {
-            tp1OrderId?: string;
-            tp2OrderId?: string;
-            tp3OrderId?: string;
-            tp4OrderId?: string;
-            tp5OrderId?: string;
-            tp6OrderId?: string;
-            trailingStopOrderId?: string;
+            tp1OrderId?: string | null;
+            tp2OrderId?: string | null;
+            tp3OrderId?: string | null;
+            tp4OrderId?: string | null;
+            tp5OrderId?: string | null;
+            tp6OrderId?: string | null;
+            trailingStopOrderId?: string | null;
+            entryOrderId?: string;
+            stopOrderId?: string;
         }
     ): Promise<void> {
         const updates = [];
         const values = [];
 
-        if (orderIds.tp1OrderId) {
+        if ('entryOrderId' in orderIds) {
+            updates.push('entryOrderId = ?');
+            values.push(orderIds.entryOrderId);
+        }
+        if ('stopOrderId' in orderIds) {
+            updates.push('stopOrderId = ?');
+            values.push(orderIds.stopOrderId);
+        }
+        if ('tp1OrderId' in orderIds) {
             updates.push('tp1OrderId = ?');
             values.push(orderIds.tp1OrderId);
         }
-        if (orderIds.tp2OrderId) {
+        if ('tp2OrderId' in orderIds) {
             updates.push('tp2OrderId = ?');
             values.push(orderIds.tp2OrderId);
         }
-        if (orderIds.tp3OrderId) {
+        if ('tp3OrderId' in orderIds) {
             updates.push('tp3OrderId = ?');
             values.push(orderIds.tp3OrderId);
         }
-        if (orderIds.tp4OrderId) {
+        if ('tp4OrderId' in orderIds) {
             updates.push('tp4OrderId = ?');
             values.push(orderIds.tp4OrderId);
         }
-        if (orderIds.tp5OrderId) {
+        if ('tp5OrderId' in orderIds) {
             updates.push('tp5OrderId = ?');
             values.push(orderIds.tp5OrderId);
         }
-        if (orderIds.tp6OrderId) {
+        if ('tp6OrderId' in orderIds) {
             updates.push('tp6OrderId = ?');
             values.push(orderIds.tp6OrderId);
         }
-        if (orderIds.trailingStopOrderId) {
+        if ('trailingStopOrderId' in orderIds) {
             updates.push('trailingStopOrderId = ?');
             values.push(orderIds.trailingStopOrderId);
         }
@@ -292,5 +320,51 @@ export class TradeDatabase {
             [orderId]
         );
         return result.count > 0;
+    }
+
+    public async saveTradeLog(
+        tradeId: number,
+        pair: string,
+        side: 'BUY' | 'SELL',
+        positionSide: 'LONG' | 'SHORT',
+        type: 'MARKET' | 'LIMIT' | 'STOP' | 'STOP_MARKET' | 'TRIGGER_LIMIT' | 'TRAILING_STOP_MARKET',
+        price: number | null,
+        stopPrice: number | null,
+        quantity: number,
+        orderResponse: BingXOrderResponse
+    ): Promise<void> {
+        const now = new Date().toISOString();
+        
+        await this.db.run(`
+            INSERT INTO trade_logs (
+                tradeId,
+                timestamp,
+                pair,
+                side,
+                positionSide,
+                type,
+                price,
+                stopPrice,
+                quantity,
+                orderResponse,
+                createdAt
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `, [
+            tradeId,
+            now,
+            pair,
+            side,
+            positionSide,
+            type,
+            price,
+            stopPrice,
+            quantity,
+            JSON.stringify(orderResponse),
+            now
+        ]);
+    }
+
+    public async getTradeLogs(tradeId: number): Promise<any[]> {
+        return await this.db.all('SELECT * FROM trade_logs WHERE tradeId = ? ORDER BY timestamp DESC', [tradeId]);
     }
 } 
