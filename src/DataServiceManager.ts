@@ -20,8 +20,9 @@ export class DataServiceManager {
             console.log(`Attempting to fetch data from Binance Futures for ${symbol}...`);
             const futuresData = await this.binanceFuturesService.getKlineData(symbol);
             const sortedData = [...futuresData].sort((a, b) => b.closeTime - a.closeTime);
+            const dataToCheck = [...sortedData].slice(1)
             console.log('Successfully fetched data from Binance Futures');
-            return { data: sortedData, source: 'binance_futures' };
+            return { data: dataToCheck, source: 'binance_futures' };
         } catch (futuresError: any) {
             console.log(`Failed to fetch data from Binance Futures: ${futuresError.message}`);
             
@@ -30,8 +31,10 @@ export class DataServiceManager {
                 console.log(`Attempting to fetch data from BingX for ${symbol}...`);
                 const bingxData = await this.bingxService.getKlineData(symbol);
                 const sortedData = [...bingxData].sort((a, b) => b.closeTime - a.closeTime);
+                const dataToCheck = [...sortedData].slice(1)
+        
                 console.log('Successfully fetched data from BingX');
-                return { data: sortedData, source: 'bingx' };
+                return { data: dataToCheck, source: 'bingx' };
             } catch (bingxError: any) {
                 console.log(`Failed to fetch data from BingX: ${bingxError.message}`);
                 
@@ -40,8 +43,9 @@ export class DataServiceManager {
                     console.log(`Attempting to fetch data from Binance Spot for ${symbol}...`);
                     const binanceData = await this.binanceService.getKlineData(symbol);
                     const sortedData = [...binanceData].sort((a, b) => b.closeTime - a.closeTime);
+                    const dataToCheck = [...sortedData].slice(1)
                     console.log('Successfully fetched data from Binance Spot');
-                    return { data: sortedData, source: 'binance' };
+                    return { data: dataToCheck, source: 'binance' };
                 } catch (binanceError: any) {
                     console.error(`Failed to fetch data from all services for ${symbol}`);
                     console.error('Binance Futures error:', futuresError);
