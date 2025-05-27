@@ -20,7 +20,7 @@ export class BingXOrderExecutor {
     constructor() {
         // Initialize API client
         this.apiClient = new BingXApiClient();
-        this.margin = parseFloat(process.env.BINGX_MARGIN || '100');
+        this.margin = parseFloat(process.env.BINGX_MARGIN || '500');
         this.volumeMarginPercentage = parseFloat(process.env.VOLUME_MARGIN_PERCENTAGE || '0');
 
         this.leverageCalculator = new LeverageCalculator();
@@ -51,18 +51,28 @@ export class BingXOrderExecutor {
             
             // Calculate base margin
             let totalMargin = this.margin;
+
+            console.log(`currentPrice:${currentPrice}`)
             
+            console.log(`margin:${this.margin}`)
+
+            console.log(`volumeMarginPercentage:${this.volumeMarginPercentage}`)
             // Add volume-based margin if trade has volume_adds_margin
             if (trade?.volume_adds_margin) {
                 const additionalMargin = this.margin * (this.volumeMarginPercentage / 100);
                 totalMargin += additionalMargin;
             }
+            console.log(`totalMargin:${totalMargin}`)
+            console.log(`leverage:${leverage}`)
             
             // Calculate position value based on total margin and leverage
             const positionValue = totalMargin * leverage;
             
+            console.log(`positionValue:${positionValue}`)
             // Calculate quantity based on position value and current price
             const quantity = positionValue / currentPrice;
+
+            console.log(`quantity:${quantity}`)
             
             // Round to appropriate decimal places (usually 3 for most pairs)
             return Math.floor(quantity * 1000) / 1000;
@@ -88,7 +98,7 @@ export class BingXOrderExecutor {
             side: side,
             positionSide: positionSide,
             type: type,
-            price: type === 'MARKET' || type === 'STOP_MARKET' ? '' : price.toString(),
+            price: price.toString(),
             stopPrice: stopPrice.toString(),
             quantity: quantity.toString()
         };

@@ -54,7 +54,7 @@ export class VolumeAnalyzer {
             const { data: klineData, source } = await this.dataServiceManager.getKlineData(symbol);
             
             // Convert volumes to numbers and calculate statistics
-            const volumes = klineData.map(kline => parseFloat(kline.volume)).slice(1);
+            const volumes = klineData.map(kline => parseFloat(kline.volume))
             const currentVolume = volumes[0];
             const mean = this.calculateMean(volumes);
             const std = this.calculateStd(volumes, mean);

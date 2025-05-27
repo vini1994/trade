@@ -16,18 +16,16 @@ interface BingXPairInfo {
 
 export class LeverageCalculator {
     private readonly apiClient: BingXApiClient;
-    private readonly maxRiskPerTrade: number;
     private readonly maxLeverage: number;
 
     constructor() {
         this.apiClient = new BingXApiClient();
-        this.maxRiskPerTrade = Number(process.env.MAX_RISK_PER_TRADE) || 1; // Default to 1% risk per trade
         this.maxLeverage = Number(process.env.MAX_LEVERAGE) || 20; // Default to 20x max leverage
     }
 
     private async getPairInfo(pair: string): Promise<BingXPairInfo> {
         const normalizedPair = normalizeSymbolBingX(pair);
-        const path = '/openApi/swap/v2/quote/contracts';
+        const path = '/openApi/swap/v2/trade/leverage';
         const params = {
             symbol: normalizedPair
         };
@@ -52,16 +50,26 @@ export class LeverageCalculator {
             // Get pair info to get max leverage
             const pairInfo = await this.getPairInfo(pair);
             const exchangeMaxLeverage = Math.floor(side === 'LONG' ? pairInfo.data.maxLongLeverage : pairInfo.data.maxShortLeverage);
-
+            
+            console.log(`entry:${entry}`)
+            console.log(`stop:${stop}`)
+            console.log(`side:${side}`)
+            
             // Calculate stop loss percentage
             const stopLossPercentage = side === 'LONG' 
                 ? ((entry - stop) / entry)  
                 : ((stop - entry) / entry);
 
-            // Calculate theoretical max leverage based on risk
-            const theoreticalMaxLeverage = 1/(this.maxRiskPerTrade / stopLossPercentage);
+            console.log(`stopLossPercentage:${stopLossPercentage}`)
 
-            const theoreticalRealMaxLeverage = theoreticalMaxLeverage - (theoreticalMaxLeverage*0.2);
+            // Calculate theoretical max leverage based on risk
+            const theoreticalMaxLeverage = 1/(stopLossPercentage);
+
+            console.log(`theoreticalMaxLeverage:${theoreticalMaxLeverage}`)
+
+            const theoreticalRealMaxLeverage = theoreticalMaxLeverage - (theoreticalMaxLeverage*0.4);
+
+            console.log(`theoreticalRealMaxLeverage:${theoreticalRealMaxLeverage}`)
 
             // Use the minimum between theoretical max leverage, exchange max leverage, and configured max leverage
             const optimalLeverage = Math.min(
@@ -69,6 +77,8 @@ export class LeverageCalculator {
                 exchangeMaxLeverage,
                 this.maxLeverage
             );
+
+            console.log(`optimalLeverage:${optimalLeverage}`)
 
             return {
                 optimalLeverage,

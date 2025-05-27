@@ -93,6 +93,8 @@ export class TradeCronJob {
             console.log(`Message: ${validationResult.message}`);
             console.log(`Volume Analysis: ${validationResult.volumeAnalysis.color} (StdBar: ${validationResult.volumeAnalysis.stdBar.toFixed(2)})`);
             console.log(`Current Close: ${validationResult.entryAnalysis.currentClose}`);
+            console.log(`Recent Closes: ${validationResult.recentCloses}`);
+            
             if (validationResult.warning) {
                 console.log(`⚠️ WARNING: Trade has warning status - Entry conditions met but invalidated by other factors`);
             }
