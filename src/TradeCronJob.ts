@@ -231,9 +231,9 @@ export class TradeCronJob {
     }
 
     public execute(): void {
-        // Schedule the job to run at minute 2 of every hour
-        //cron.schedule('1 * * * *', async () => {
-        cron.schedule('* * * * *', async () => {
+        // Schedule the job to run at minute 1 of every hour
+        cron.schedule('1 * * * *', async () => {
+        //cron.schedule('* * * * *', async () => {
             const trades = this.readTrades();
             await this.processAndDisplayTrades(trades);
             
