@@ -47,6 +47,7 @@ export class TradeValidator {
         };
         message: string;
         warning: boolean;
+        recentCloses: number[];
     }> {
         try {
             // Run both analyses in parallel
@@ -60,6 +61,9 @@ export class TradeValidator {
                 ),
                 this.volumeAnalyzer.analyzeVolume(trade.symbol)
             ]);
+
+            // Get recent closes from entry analysis
+            const recentCloses = await this.tradeEntryAnalyzer.getRecentCloses(trade.symbol, 3);
 
             // Check if both conditions are met
             const isEntryValid = entryAnalysis.canEnter;
@@ -106,7 +110,8 @@ export class TradeValidator {
                 entryAnalysis,
                 volumeAnalysis,
                 message,
-                warning
+                warning,
+                recentCloses
             };
         } catch (error) {
             console.error(`Error validating trade for ${trade.symbol}:`, error);

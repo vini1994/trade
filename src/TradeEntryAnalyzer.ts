@@ -19,12 +19,9 @@ export class TradeEntryAnalyzer {
     }
 
     private hasClosePriceBeforeEntry(klineData: KlineData[], entry: number, type: TradeType): boolean {
-        // Sort by close time in descending order (most recent first)
-        const sortedData = [...klineData].sort((a, b) => b.closeTime - a.closeTime);
-        
         // Skip the most recent candle as we already checked it
-        const dataToCheck = sortedData.slice(2)
-
+        const dataToCheck = [...klineData].slice(1)
+        
         for (const kline of dataToCheck) {
             const close = parseFloat(kline.close);
             
@@ -92,7 +89,7 @@ export class TradeEntryAnalyzer {
             const { data: klineData, source } = await this.dataServiceManager.getKlineData(symbol);
             
             // Get the most recent close price
-            const currentCandle = klineData[1];
+            const currentCandle = klineData[0];
             const currentClose = parseFloat(currentCandle.close);
             
             // Check if entry condition is met first
@@ -147,6 +144,18 @@ export class TradeEntryAnalyzer {
         } catch (error: any) {
             console.error(`Error analyzing entry for ${symbol}:`, error);
             throw new Error(`Failed to analyze entry for ${symbol}: ${error.message}`);
+        }
+    }
+
+    public async getRecentCloses(symbol: string, count: number): Promise<number[]> {
+        try {
+            const { data: klineData } = await this.dataServiceManager.getKlineData(symbol);
+            return klineData
+                .slice(0, count)
+                .map(kline => parseFloat(kline.close));
+        } catch (error: any) {
+            console.error(`Error getting recent closes for ${symbol}:`, error);
+            throw new Error(`Failed to get recent closes for ${symbol}: ${error.message}`);
         }
     }
 } 
