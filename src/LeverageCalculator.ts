@@ -104,7 +104,7 @@ export class LeverageCalculator {
         const params = {
             symbol: normalizedPair,
             leverage: leverage.toString(),
-            positionSide: positionSide
+            side: positionSide
         };
 
         try {
