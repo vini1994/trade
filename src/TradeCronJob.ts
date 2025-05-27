@@ -185,8 +185,8 @@ export class TradeCronJob {
                             executionResult: executionResult.success && executionResult.data ? {
                                 leverage: executionResult.data.leverage.optimalLeverage,
                                 quantity: executionResult.data.quantity,
-                                entryOrderId: executionResult.data.entryOrder.data.orderId,
-                                stopOrderId: executionResult.data.stopOrder.data.orderId,
+                                entryOrderId: executionResult.data.entryOrder.data.order.orderId,
+                                stopOrderId: executionResult.data.stopOrder.data.order.orderId,
                                 volumeMarginAdded: executionResult.data.volumeMarginAdded
                             } : undefined,
                             executionError: !executionResult.success ? executionResult.message : undefined

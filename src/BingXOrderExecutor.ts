@@ -86,10 +86,11 @@ export class BingXOrderExecutor {
         pair: string,
         side: 'BUY' | 'SELL',
         positionSide: 'LONG' | 'SHORT',
-        type: 'MARKET' | 'LIMIT' | 'STOP_MARKET' | 'TRIGGER_LIMIT',
+        type: 'MARKET' | 'LIMIT' | 'STOP' | 'STOP_MARKET' | 'TRIGGER_LIMIT',
         price: number,
         stopPrice: number,
-        quantity: number
+        quantity: number,
+        tradeId?: number
     ): Promise<BingXOrderResponse> {
         const normalizedPair = normalizeSymbolBingX(pair);
         const path = '/openApi/swap/v2/trade/order';
@@ -109,7 +110,24 @@ export class BingXOrderExecutor {
         }
 
         try {
-            return await this.apiClient.post<BingXOrderResponse>(path, params);
+            const response = await this.apiClient.post<BingXOrderResponse>(path, params);
+            
+            // Save log if tradeId is provided
+            if (tradeId) {
+                await this.tradeDatabase.saveTradeLog(
+                    tradeId,
+                    normalizedPair,
+                    side,
+                    positionSide,
+                    type,
+                    price || null,
+                    stopPrice || null,
+                    quantity,
+                    response
+                );
+            }
+
+            return response;
         } catch (error) {
             console.error('Error placing order:', error);
             throw error;
@@ -121,7 +139,9 @@ export class BingXOrderExecutor {
         side: 'BUY' | 'SELL',
         positionSide: 'LONG' | 'SHORT',
         quantity: number,
-        activationPrice: number
+        price: number,
+        activationPrice: number,
+        tradeId?: number
     ): Promise<BingXOrderResponse> {
         const normalizedPair = normalizeSymbolBingX(pair);
         const path = '/openApi/swap/v2/trade/order';
@@ -131,18 +151,36 @@ export class BingXOrderExecutor {
             positionSide: positionSide,
             type: 'TRAILING_STOP_MARKET',
             quantity: quantity.toString(),
+            price: price.toString(),
             activationPrice: activationPrice.toString()
         };
 
         try {
-            return await this.apiClient.post<BingXOrderResponse>(path, params);
+            const response = await this.apiClient.post<BingXOrderResponse>(path, params);
+            
+            // Save log if tradeId is provided
+            if (tradeId) {
+                await this.tradeDatabase.saveTradeLog(
+                    tradeId,
+                    normalizedPair,
+                    side,
+                    positionSide,
+                    'TRAILING_STOP_MARKET',
+                    price,
+                    activationPrice,
+                    quantity,
+                    response
+                );
+            }
+
+            return response;
         } catch (error) {
             console.error('Error placing trailing stop order:', error);
             throw error;
         }
     }
 
-    private async placeTakeProfitOrders(trade: Trade, quantity: number): Promise<BingXOrderResponse[]> {
+    private async placeTakeProfitOrders(trade: Trade, quantity: number, tradeId: number): Promise<BingXOrderResponse[]> {
         const tpOrders: BingXOrderResponse[] = [];
         const takeProfits = [
             { level: 1, price: trade.tp1 },
@@ -161,7 +199,8 @@ export class BingXOrderExecutor {
                     trade.type === 'LONG' ? 'SELL' : 'BUY',
                     trade.type,
                     quantity,
-                    trade.entry // Use entry price as activation price
+                    trade.entry, // Use entry price as activation price
+                    tradeId
                 )
             );
             return tpOrders;
@@ -220,7 +259,8 @@ export class BingXOrderExecutor {
                         'TRIGGER_LIMIT',
                         tp.price!,
                         tp.price!,
-                        tpQuantity
+                        tpQuantity,
+                        tradeId
                     )
                 );
                 remainingQuantity -= tpQuantity;
@@ -236,7 +276,9 @@ export class BingXOrderExecutor {
                     trade.type === 'LONG' ? 'SELL' : 'BUY',
                     trade.type,
                     remainingQuantity,
-                    lastTp.price! // Use last take profit as activation price
+                    trade.type === 'LONG' ? lastTp.price! - trade.entry : trade.entry - lastTp.price!,
+                    lastTp.price!, // Use last take profit as activation price
+                    tradeId
                 )
             );
         }
@@ -291,6 +333,18 @@ export class BingXOrderExecutor {
             const quantity = await this.calculatePositionQuantity(trade.symbol, leverageInfo.optimalLeverage, trade);
             console.log(`Calculated position quantity: ${quantity} based on margin ${this.margin} USDT and leverage ${leverageInfo.optimalLeverage}x`);
 
+            // Save trade to database first to get the tradeId
+            const tradeRecord = await this.tradeDatabase.saveTrade(
+                trade,
+                {
+                    entryOrder: { data: { order: { orderId: 'pending' } } } as BingXOrderResponse,
+                    stopOrder: { data: { order: { orderId: 'pending' } } } as BingXOrderResponse,
+                    tpOrders: []
+                },
+                quantity,
+                leverageInfo.optimalLeverage
+            );
+
             // Place entry order (MARKET)
             const entryOrder = await this.placeOrder(
                 trade.symbol,
@@ -299,7 +353,8 @@ export class BingXOrderExecutor {
                 'MARKET',
                 0, // No price for MARKET orders
                 0,
-                quantity
+                quantity,
+                tradeRecord.id
             );
 
             // Place stop loss order (LIMIT)
@@ -307,26 +362,31 @@ export class BingXOrderExecutor {
                 trade.symbol,
                 trade.type === 'LONG' ? 'SELL' : 'BUY',
                 trade.type,
-                'LIMIT',
+                'STOP',
                 trade.stop,
                 trade.stop,
-                quantity
+                quantity,
+                tradeRecord.id
             );
 
             // Place take profit orders based on the scenario
-            const tpOrders = await this.placeTakeProfitOrders(trade, quantity);
+            const tpOrders = await this.placeTakeProfitOrders(trade, quantity, tradeRecord.id);
 
-            // Save trade to database
-            const tradeRecord = await this.tradeDatabase.saveTrade(
-                trade,
-                {
-                    entryOrder,
-                    stopOrder,
-                    tpOrders
-                },
-                quantity,
-                leverageInfo.optimalLeverage
-            );
+            // Update trade record with actual order IDs
+            await this.tradeDatabase.updateOrderIds(tradeRecord.id, {
+                entryOrderId: entryOrder.data.order.orderId,
+                stopOrderId: stopOrder.data.order.orderId,
+                tp1OrderId: tpOrders[0]?.data.order.orderId || null,
+                tp2OrderId: tpOrders[1]?.data.order.orderId || null,
+                tp3OrderId: tpOrders[2]?.data.order.orderId || null,
+                tp4OrderId: tpOrders[3]?.data.order.orderId || null,
+                tp5OrderId: tpOrders[4]?.data.order.orderId || null,
+                tp6OrderId: tpOrders[5]?.data.order.orderId || null,
+                trailingStopOrderId: tpOrders[6]?.data.order.orderId || null
+            });
+
+            // Get updated trade record
+            const updatedTradeRecord = await this.tradeDatabase.getTradeById(tradeRecord.id);
 
             return {
                 entryOrder,
@@ -334,7 +394,7 @@ export class BingXOrderExecutor {
                 tpOrders,
                 leverage: leverageInfo,
                 quantity,
-                tradeRecord
+                tradeRecord: updatedTradeRecord
             };
         } catch (error) {
             console.error('Error executing trade:', error);
