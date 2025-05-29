@@ -6,16 +6,19 @@ const TRADES_FILE = path.join(__dirname, '../../../data/trades.json');
 export interface Trade {
     entry: number;
     stop: number;
-    ls: 'LONG' | 'SHORT';
+    side: 'LONG' | 'SHORT';
     tp1: number;
     tp2: number | null;
     tp3: number | null;
     tp4: number | null;
     tp5: number | null;
     tp6: number | null;
-    par: string;
-    volume: boolean;
+    pair: string;
+    no_volume_invalidates_trade: boolean;
+    volume_adds_margin: boolean;
+    setup_description: string;
     url_analysis: string;
+    volume_required: boolean;
 }
 
 export class TradeService {

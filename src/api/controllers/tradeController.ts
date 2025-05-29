@@ -22,13 +22,14 @@ export class TradeController {
             const newTrade = req.body as Trade;
             
             // Validate required fields
-            if (!newTrade.entry || !newTrade.stop || !newTrade.ls || !newTrade.tp1 || !newTrade.par) {
+            if (!newTrade.entry || !newTrade.stop || !newTrade.side || !newTrade.tp1 || !newTrade.pair || !newTrade.setup_description) {
                 const missingFields = [];
                 if (!newTrade.entry) missingFields.push('entry');
                 if (!newTrade.stop) missingFields.push('stop');
-                if (!newTrade.ls) missingFields.push('ls');
+                if (!newTrade.side) missingFields.push('side');
                 if (!newTrade.tp1) missingFields.push('tp1');
-                if (!newTrade.par) missingFields.push('par');
+                if (!newTrade.pair) missingFields.push('pair');
+                if (!newTrade.setup_description) missingFields.push('setup_description');
                 
                 res.status(400).json({ error: `Missing required fields: ${missingFields.join(', ')}` });
                 return;
