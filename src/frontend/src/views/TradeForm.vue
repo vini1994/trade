@@ -1,5 +1,9 @@
 <template>
   <div class="container py-4">
+    <div v-if="errorMessage" class="alert alert-danger alert-dismissible fade show mb-3" role="alert">
+      {{ errorMessage }}
+      <button type="button" class="btn-close" @click="errorMessage = ''" aria-label="Close"></button>
+    </div>
     <div class="card shadow-sm">
       <div class="card-header">
         <h5 class="card-title mb-0">{{ isEditing ? 'Edit Trade' : 'Add New Trade' }}</h5>
@@ -9,7 +13,7 @@
           <div class="mb-3">
             <label class="form-label">Pair</label>
             <input
-              v-model="tradeData.pair"
+              v-model="pairUpperCase"
               type="text"
               class="form-control"
               required
@@ -205,40 +209,56 @@ const tradeData = ref<Trade>({
   url_analysis: ''
 })
 
+const pairUpperCase = computed({
+  get: () => tradeData.value.pair,
+  set: (value: string) => {
+    tradeData.value.pair = value.toUpperCase()
+  }
+})
+
 const isEditing = computed(() => route.params.id !== undefined)
+
+const errorMessage = ref('')
 
 // Load trade data if editing
 onMounted(async () => {
   if (isEditing.value) {
     try {
       const response = await fetch(`/api/trades/${route.params.id}`)
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.message || 'Failed to load trade')
+      }
       const trade = await response.json()
       tradeData.value = trade
     } catch (error) {
       console.error('Failed to load trade:', error)
-      router.push('/')
+      errorMessage.value = error instanceof Error ? error.message : 'Failed to load trade'
     }
   }
 })
 
 const saveTrade = async () => {
   try {
-    if (isEditing.value) {
-      await fetch(`/api/trades/${route.params.id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(tradeData.value)
-      })
-    } else {
-      await fetch('/api/trades', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(tradeData.value)
-      })
+    errorMessage.value = ''
+    const url = isEditing.value ? `/api/trades/${route.params.id}` : '/api/trades'
+    const method = isEditing.value ? 'PUT' : 'POST'
+    
+    const response = await fetch(url, {
+      method,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(tradeData.value)
+    })
+
+    if (!response.ok) {
+      const error = await response.json()
+      throw new Error(error.message || 'Failed to save trade')
     }
+
     router.push('/')
   } catch (error) {
     console.error('Failed to save trade:', error)
+    errorMessage.value = error instanceof Error ? error.message : 'Failed to save trade'
   }
 }
 </script> 
