@@ -51,11 +51,17 @@ export class PositionMonitor {
     private async matchPositionWithTrade(position: Position): Promise<number | undefined> {
         const normalizedSymbol = normalizeSymbolBingX(position.symbol);
         const trades = await this.tradeDatabase.getOpenTrades();
-        const matchingTrade = trades.find(trade => 
+        const matchingTrades = trades.filter(trade => 
             normalizeSymbolBingX(trade.symbol) === normalizedSymbol && 
             trade.type === position.positionSide
         );
-        return matchingTrade?.id;
+        
+        if (matchingTrades.length === 0) {
+            return undefined;
+        }
+        
+        // Return the trade with the maximum ID
+        return Math.max(...matchingTrades.map(trade => trade.id));
     }
 
     private async updateMonitoredPosition(position: Position): Promise<void> {
@@ -64,14 +70,49 @@ export class PositionMonitor {
 
         // Update open orders to get latest stop loss orders
         await this.orderMonitor.updateOpenOrders();
-        const stopLossOrder = this.orderMonitor.getStopMarketOrder(position.symbol, position.positionSide);
+        let stopLossOrder = this.orderMonitor.getStopMarketOrder(position.symbol, position.positionSide);
 
-        // Get trade info to get leverage
+        // Get trade info to get leverage and initial stop price
         const tradeId = await this.matchPositionWithTrade(position);
         let leverage: number | undefined;
+        let initialStopPrice: number | undefined;
         if (tradeId) {
             const trade = await this.tradeDatabase.getTradeById(tradeId);
             leverage = trade?.leverage;
+            initialStopPrice = trade?.stop; // Using the 'stop' field from TradeRecord
+            // If no stop loss order exists but we have a trade stop price, create one
+            if (!stopLossOrder && initialStopPrice && parseFloat(position.positionAmt) !== 0) {
+                try {
+                    const newStopOrder = await this.orderExecutor.placeOrder(
+                        position.symbol,
+                        position.positionSide === 'LONG' ? 'SELL' : 'BUY',
+                        position.positionSide,
+                        'STOP_MARKET',
+                        0, // No price for STOP_MARKET orders
+                        initialStopPrice,
+                        parseFloat(position.positionAmt)
+                    );
+
+                    stopLossOrder = {
+                        orderId: newStopOrder.data.order.orderId,
+                        symbol: position.symbol,
+                        side: position.positionSide === 'LONG' ? 'SELL' : 'BUY',
+                        type: 'STOP_MARKET',
+                        price: '0', // STOP_MARKET orders don't have a price
+                        stopPrice: initialStopPrice.toString(),
+                        quantity: position.positionAmt,
+                        positionSide: position.positionSide,
+                        status: 'NEW',
+                        clientOrderId: newStopOrder.data.order.clientOrderId || '',
+                        createTime: Date.now(),
+                        updateTime: Date.now()
+                    };
+
+                    console.log(`Created new stop loss order for ${position.symbol} ${position.positionSide} at ${initialStopPrice}`);
+                } catch (error) {
+                    console.error(`Error creating stop loss order for ${position.symbol} ${position.positionSide}:`, error);
+                }
+            }
         }
 
         if (existingPosition) {
@@ -155,7 +196,7 @@ export class PositionMonitor {
                     // Update the monitored position with new stop loss order
                     position.stopLossOrder = {
                         ...position.stopLossOrder,
-                        orderId: newStopOrder.data.orderId,
+                        orderId: newStopOrder.data.order.orderId,
                         stopPrice: breakevenWithFees.toString()
                     };
 
