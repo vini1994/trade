@@ -2,7 +2,7 @@ import { BingXApiClient } from './services/BingXApiClient';
 import { LeverageCalculator } from './LeverageCalculator';
 import { PositionValidator } from './PositionValidator';
 import { TradeDatabase } from './TradeDatabase';
-import { normalizeSymbolBingX } from './utils/bingxUtils';
+import { normalizeSymbolBingX, getPairPrice } from './utils/bingxUtils';
 import { Trade, BingXOrderResponse, TradeRecord, TradeExecutionResult } from './utils/types';
 import * as dotenv from 'dotenv';
 
@@ -28,26 +28,11 @@ export class BingXOrderExecutor {
         this.tradeDatabase = new TradeDatabase();
     }
 
-    private async getPairPrice(pair: string): Promise<number> {
-        try {
-            const path = '/openApi/swap/v2/quote/ticker';
-            const params = {
-                symbol: pair
-            };
-
-            const response = await this.apiClient.get<{ data: { lastPrice: string } }>(path, params);
-            return parseFloat(response.data.lastPrice);
-        } catch (error) {
-            console.error('Error fetching pair price:', error);
-            throw error;
-        }
-    }
-
     private async calculatePositionQuantity(pair: string, leverage: number, trade?: Trade): Promise<number> {
         try {
             const normalizedPair = normalizeSymbolBingX(pair);
             // Get current price
-            const currentPrice = await this.getPairPrice(normalizedPair);
+            const currentPrice = await getPairPrice(normalizedPair, this.apiClient);
             
             // Calculate base margin
             let totalMargin = this.margin;

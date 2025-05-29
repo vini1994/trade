@@ -1,3 +1,5 @@
+import { BingXApiClient } from '../services/BingXApiClient';
+
 /**
  * Normalizes a trading symbol to BingX format
  * @param symbol The trading symbol to normalize
@@ -9,4 +11,25 @@ export function normalizeSymbolBingX(symbol: string): string {
         return upperSymbol.replace('USDT', '') + '-USDT';
     }
     return upperSymbol;
+}
+
+/**
+ * Gets the current price for a trading pair from BingX
+ * @param pair The trading pair symbol
+ * @param apiClient The BingX API client instance
+ * @returns The current price as a number
+ */
+export async function getPairPrice(pair: string, apiClient: BingXApiClient): Promise<number> {
+    try {
+        const path = '/openApi/swap/v2/quote/ticker';
+        const params = {
+            symbol: pair
+        };
+
+        const response = await apiClient.get<{ data: { lastPrice: string } }>(path, params);
+        return parseFloat(response.data.lastPrice);
+    } catch (error) {
+        console.error('Error fetching pair price:', error);
+        throw error;
+    }
 } 
