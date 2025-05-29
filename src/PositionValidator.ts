@@ -14,18 +14,24 @@ export class PositionValidator {
     }
 
     public async getPositions(symbol: string): Promise<Position[]> {
-        const normalizedSymbol = symbol === 'ALL' ? symbol : normalizeSymbolBingX(symbol);
+        const normalizedSymbol = symbol === 'ALL' ? '' : normalizeSymbolBingX(symbol);
         const path = '/openApi/swap/v2/user/positions';
-        const params = {
-            symbol: normalizedSymbol
-        };
+        const params: Record<string, string> = {};
+        
+        if (normalizedSymbol) {
+            params.symbol = normalizedSymbol;
+        }
 
         try {
             const response = await this.apiClient.get<BingXPositionResponse>(path, params);
-            return response.data;
+            if (response.code !== 0) {
+                console.warn(`API returned non-zero code: ${response.code}, message: ${response.msg}`);
+                return [];
+            }
+            return response.data || [];
         } catch (error) {
             console.error('Error fetching positions:', error);
-            throw error;
+            return [];
         }
     }
 

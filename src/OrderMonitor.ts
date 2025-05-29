@@ -19,10 +19,14 @@ export interface Order {
     updateTime: number;
 }
 
+export interface Orders {
+    orders: Order[]
+}
+
 interface BingXOrderResponse {
     code: number;
     msg: string;
-    data: Order[];
+    data: Orders;
 }
 
 export class OrderMonitor {
@@ -39,7 +43,7 @@ export class OrderMonitor {
 
     public async updateOpenOrders(): Promise<void> {
         try {
-            const path = '/openApi/swap/v2/user/openOrders';
+            const path = '/openApi/swap/v2/trade/openOrders';
             const params = {
                 timestamp: Date.now().toString()
             };
@@ -50,7 +54,7 @@ export class OrderMonitor {
             this.openOrders.clear();
 
             // Update with new orders
-            for (const order of data.data) {
+            for (const order of data.data.orders) {
                 if (order.status === 'NEW' || order.status === 'PARTIALLY_FILLED') {
                     this.openOrders.set(this.getOrderKey(order), order);
                 }
