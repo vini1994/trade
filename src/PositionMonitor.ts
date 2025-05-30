@@ -65,6 +65,7 @@ export class PositionMonitor {
     }
 
     private async updateMonitoredPosition(position: Position): Promise<void> {
+        console.log(this.monitoredPositions)
         const positionKey = this.getPositionKey(position.symbol, position.positionSide);
         const existingPosition = this.monitoredPositions.get(positionKey);
 
@@ -78,7 +79,7 @@ export class PositionMonitor {
         let initialStopPrice: number | undefined;
         if (tradeId) {
             const trade = await this.tradeDatabase.getTradeById(tradeId);
-            leverage = trade?.leverage;
+            leverage = parseFloat(position.leverage.toString());
             initialStopPrice = trade?.stop; // Using the 'stop' field from TradeRecord
             // If no stop loss order exists but we have a trade stop price, create one
             if (!stopLossOrder && initialStopPrice && parseFloat(position.positionAmt) !== 0) {
@@ -87,8 +88,8 @@ export class PositionMonitor {
                         position.symbol,
                         position.positionSide === 'LONG' ? 'SELL' : 'BUY',
                         position.positionSide,
-                        'STOP_MARKET',
-                        0, // No price for STOP_MARKET orders
+                        'STOP',
+                        initialStopPrice, // No price for STOP_MARKET orders
                         initialStopPrice,
                         parseFloat(position.positionAmt)
                     );
@@ -97,8 +98,8 @@ export class PositionMonitor {
                         orderId: newStopOrder.data.order.orderId,
                         symbol: position.symbol,
                         side: position.positionSide === 'LONG' ? 'SELL' : 'BUY',
-                        type: 'STOP_MARKET',
-                        price: '0', // STOP_MARKET orders don't have a price
+                        type: 'STOP',
+                        price: initialStopPrice.toString(), // STOP_MARKET orders don't have a price
                         stopPrice: initialStopPrice.toString(),
                         quantity: position.positionAmt,
                         positionSide: position.positionSide,
@@ -115,6 +116,9 @@ export class PositionMonitor {
             }
         }
 
+
+
+
         if (existingPosition) {
             // Update existing position
             existingPosition.position = position;
@@ -122,9 +126,11 @@ export class PositionMonitor {
             existingPosition.leverage = leverage;
             if (!existingPosition.initialStopPrice && stopLossOrder) {
                 existingPosition.initialStopPrice = parseFloat(stopLossOrder.stopPrice);
-                existingPosition.entryPrice = parseFloat(position.entryPrice);
+                existingPosition.entryPrice = parseFloat(position.avgPrice);
             }
-        } else {
+        }
+
+        if (!existingPosition?.websocket){
             // Create new monitored position
             const websocket = this.createWebSocket(position.symbol, position.positionSide);
 
@@ -137,7 +143,7 @@ export class PositionMonitor {
                 lastPrice: undefined,
                 stopLossOrder,
                 initialStopPrice: stopLossOrder ? parseFloat(stopLossOrder.stopPrice) : undefined,
-                entryPrice: parseFloat(position.entryPrice),
+                entryPrice: parseFloat(position.avgPrice),
                 leverage
             });
         }

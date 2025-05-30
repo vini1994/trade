@@ -231,14 +231,19 @@ export class TradeCronJob {
     }
 
     public execute(): void {
-        // Schedule the job to run at minute 1 of every hour
-        cron.schedule('1 * * * *', async () => {
-        //cron.schedule('* * * * *', async () => {
+        // Initial execution after 30 seconds
+        setTimeout(async () => {
+            console.log('Executing initial trade check after 30 seconds...');
             const trades = this.readTrades();
             await this.processAndDisplayTrades(trades);
-            
+        }, 30000);
+
+        // Schedule the job to run at minute 1 of every hour
+        cron.schedule('1 * * * *', async () => {
+            const trades = this.readTrades();
+            await this.processAndDisplayTrades(trades);
         });
 
-        console.log('Trade cron job started. Will run at minute 2 of every hour.');
+        console.log('Trade cron job started. Initial execution in 30 seconds, then will run at minute 1 of every hour.');
     }
 } 

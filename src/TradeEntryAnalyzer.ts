@@ -53,7 +53,6 @@ export class TradeEntryAnalyzer {
         const close = parseFloat(candle.close);
         
         const totalCandleHeight = high - low;
-        const bodyHeight = Math.abs(close - open);
         
         if (type === 'LONG') {
             const upperWick = high - Math.max(open, close);
@@ -98,27 +97,29 @@ export class TradeEntryAnalyzer {
             if (entryConditionMet) {
                 hasClosePriceBeforeEntry = this.hasClosePriceBeforeEntry(klineData, entry, type);
             }
+            if (entryConditionMet && hasClosePriceBeforeEntry){
+                // Validate risk-reward ratio
+                if (riskRewardRatio < 0.8) {
+                    return {
+                        canEnter: false,
+                        currentClose,
+                        hasClosePriceBeforeEntry,
+                        warning: entryConditionMet && hasClosePriceBeforeEntry,
+                        message: `Invalid risk-reward ratio. Distance to TP1 (${entryToTP1Distance}) is less than 80% of distance to stop (${entryToStopDistance})`
+                    };
+                }
+                
+                // Check if wick ratio is valid
+                if (!this.isWickRatioValid(currentCandle, type)) {
+                    return {
+                        canEnter: false,
+                        currentClose,
+                        hasClosePriceBeforeEntry,
+                        warning: entryConditionMet && hasClosePriceBeforeEntry,
+                        message: `Invalid candle wick ratio. ${type === 'LONG' ? 'Upper' : 'Lower'} wick is more than 80% of total candle height [${source}]`
+                    };
+                }
 
-            // Validate risk-reward ratio
-            if (riskRewardRatio < 0.8) {
-                return {
-                    canEnter: false,
-                    currentClose,
-                    hasClosePriceBeforeEntry,
-                    warning: entryConditionMet && hasClosePriceBeforeEntry,
-                    message: `Invalid risk-reward ratio. Distance to TP1 (${entryToTP1Distance}) is less than 80% of distance to stop (${entryToStopDistance})`
-                };
-            }
-            
-            // Check if wick ratio is valid
-            if (!this.isWickRatioValid(currentCandle, type)) {
-                return {
-                    canEnter: false,
-                    currentClose,
-                    hasClosePriceBeforeEntry,
-                    warning: entryConditionMet && hasClosePriceBeforeEntry,
-                    message: `Invalid candle wick ratio. ${type === 'LONG' ? 'Upper' : 'Lower'} wick is more than 80% of total candle height [${source}]`
-                };
             }
 
             // Determine if we can enter the trade

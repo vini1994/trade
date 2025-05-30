@@ -70,7 +70,7 @@ export class OrderMonitor {
             if (
                 order.symbol === symbol &&
                 order.positionSide === positionSide &&
-                order.type === 'STOP_MARKET' &&
+                (order.type === 'STOP_MARKET' || order.type === 'STOP') &&
                 (order.status === 'NEW' || order.status === 'PARTIALLY_FILLED')
             ) {
                 return order;

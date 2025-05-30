@@ -20,7 +20,7 @@ export class DataServiceManager {
             console.log(`Attempting to fetch data from Binance Futures for ${symbol}...`);
             const futuresData = await this.binanceFuturesService.getKlineData(symbol);
             const sortedData = [...futuresData].sort((a, b) => b.closeTime - a.closeTime);
-            const dataToCheck = [...sortedData]
+            const dataToCheck = [...sortedData].slice(1)
             console.log('Successfully fetched data from Binance Futures');
             return { data: dataToCheck, source: 'binance_futures' };
         } catch (futuresError: any) {

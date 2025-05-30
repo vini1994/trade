@@ -105,7 +105,7 @@ export interface Position {
     symbol: string;
     positionSide: 'LONG' | 'SHORT';
     positionAmt: string;
-    entryPrice: string;
+    avgPrice: string;
     markPrice: string;
     unRealizedProfit: string;
     liquidationPrice: string;

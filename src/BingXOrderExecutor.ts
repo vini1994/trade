@@ -59,8 +59,8 @@ export class BingXOrderExecutor {
 
             console.log(`quantity:${quantity}`)
             
-            // Round to appropriate decimal places (usually 3 for most pairs)
-            return Math.floor(quantity * 1000) / 1000;
+            // Round to 4 decimal places
+            return Math.floor(quantity * 10000) / 10000;
         } catch (error) {
             console.error('Error calculating position quantity:', error);
             throw error;
@@ -185,6 +185,7 @@ export class BingXOrderExecutor {
                     trade.type,
                     quantity,
                     trade.entry, // Use entry price as activation price
+                    trade.entry,
                     tradeId
                 )
             );
@@ -197,38 +198,43 @@ export class BingXOrderExecutor {
 
         if (takeProfits.length === 1) {
             // Single take profit: 90% of position
-            tpQuantities.push(quantity * 0.9);
+            tpQuantities.push(Math.floor(quantity * 0.9 * 10000) / 10000);
         } else if (takeProfits.length === 2) {
             // Two take profits: 50% and 90% of remaining
-            tpQuantities.push(quantity * 0.5);
-            tpQuantities.push(quantity * 0.45); // 90% of remaining 50%
+            tpQuantities.push(Math.floor(quantity * 0.5 * 10000) / 10000);
+            tpQuantities.push(Math.floor(quantity * 0.4 * 10000) / 10000); // 90% of remaining 50%
         } else if (takeProfits.length === 3) {
             // Three take profits: 50%, 70% of remaining, 90% of remaining
-            tpQuantities.push(quantity * 0.5);
-            tpQuantities.push(quantity * 0.35); // 70% of remaining 50%
-            tpQuantities.push(quantity * 0.15); // 90% of remaining 15%
+            tpQuantities.push(Math.floor(quantity * 0.5 * 10000) / 10000);
+            tpQuantities.push(Math.floor(quantity * 0.3 * 10000) / 10000); // 70% of remaining 50%
+            tpQuantities.push(Math.floor(quantity * 0.1 * 10000) / 10000); // 90% of remaining 15%
         } else if (takeProfits.length === 4) {
             // Four take profits: 40%, 60% of remaining, 80% of remaining, 90% of remaining
-            tpQuantities.push(quantity * 0.4);
-            tpQuantities.push(quantity * 0.24); // 60% of remaining 60%
-            tpQuantities.push(quantity * 0.24); // 80% of remaining 30%
-            tpQuantities.push(quantity * 0.12); // 90% of remaining 12%
+            tpQuantities.push(Math.floor(quantity * 0.5 * 10000) / 10000);
+            tpQuantities.push(Math.floor(quantity * 0.2 * 10000) / 10000); // 60% of remaining 60%
+            tpQuantities.push(Math.floor(quantity * 0.1 * 10000) / 10000); // 80% of remaining 30%
+            tpQuantities.push(Math.floor(quantity * 0.1 * 10000) / 10000); // 90% of remaining 12%
         } else if (takeProfits.length === 5) {
             // Five take profits: 30%, 45% of remaining, 60% of remaining, 75% of remaining, 90% of remaining
-            tpQuantities.push(quantity * 0.3);
-            tpQuantities.push(quantity * 0.21); // 45% of remaining 70%
-            tpQuantities.push(quantity * 0.21); // 60% of remaining 49%
-            tpQuantities.push(quantity * 0.15); // 75% of remaining 28%
-            tpQuantities.push(quantity * 0.13); // 90% of remaining 15%
+            tpQuantities.push(Math.floor(quantity * 0.5 * 10000) / 10000);
+            tpQuantities.push(Math.floor(quantity * 0.2 * 10000) / 10000); // 45% of remaining 70%
+            tpQuantities.push(Math.floor(quantity * 0.1 * 10000) / 10000); // 60% of remaining 49%
+            tpQuantities.push(Math.floor(quantity * 0.05 * 10000) / 10000); // 75% of remaining 28%
+            tpQuantities.push(Math.floor(quantity * 0.05 * 10000) / 10000); // 90% of remaining 15%
         } else if (takeProfits.length === 6) {
             // Six take profits: 25%, 40% of remaining, 55% of remaining, 70% of remaining, 85% of remaining, 95% of remaining
-            tpQuantities.push(quantity * 0.25);
-            tpQuantities.push(quantity * 0.18); // 40% of remaining 75%
-            tpQuantities.push(quantity * 0.18); // 55% of remaining 57%
-            tpQuantities.push(quantity * 0.15); // 70% of remaining 39%
-            tpQuantities.push(quantity * 0.12); // 85% of remaining 24%
-            tpQuantities.push(quantity * 0.12); // 95% of remaining 12%
+            tpQuantities.push(Math.floor(quantity * 0.5 * 10000) / 10000);
+            tpQuantities.push(Math.floor(quantity * 0.2 * 10000) / 10000); // 40% of remaining 75%
+            tpQuantities.push(Math.floor(quantity * 0.05 * 10000) / 10000); // 55% of remaining 57%
+            tpQuantities.push(Math.floor(quantity * 0.05 * 10000) / 10000); // 70% of remaining 39%
+            tpQuantities.push(Math.floor(quantity * 0.05 * 10000) / 10000); // 85% of remaining 24%
+            tpQuantities.push(Math.floor(quantity * 0.05 * 10000) / 10000); // 95% of remaining 12%
         }
+
+        // Calculate total of take profit quantities
+        const totalTpQuantity = tpQuantities.reduce((sum, qty) => sum + qty, 0);
+        // Calculate difference between total quantity and take profit quantities
+        const quantityDifference = Math.abs(quantity - totalTpQuantity);
 
         // Place take profit orders
         for (let i = 0; i < takeProfits.length; i++) {
@@ -252,20 +258,24 @@ export class BingXOrderExecutor {
             }
         }
 
-        // Add trailing stop for remaining quantity if any
-        if (remainingQuantity > 0) {
+        // Add trailing stop for remaining quantity (including any difference from rounding)
+        if (remainingQuantity > 0 || quantityDifference > 0) {
             const lastTp = takeProfits[takeProfits.length - 1];
-            tpOrders.push(
-                await this.placeTrailingStopOrder(
-                    trade.symbol,
-                    trade.type === 'LONG' ? 'SELL' : 'BUY',
-                    trade.type,
-                    remainingQuantity,
-                    trade.type === 'LONG' ? lastTp.price! - trade.entry : trade.entry - lastTp.price!,
-                    lastTp.price!, // Use last take profit as activation price
-                    tradeId
-                )
-            );
+            const trailingStopQuantity = remainingQuantity + quantityDifference;
+            
+            if (trailingStopQuantity > 0) {
+                tpOrders.push(
+                    await this.placeTrailingStopOrder(
+                        trade.symbol,
+                        trade.type === 'LONG' ? 'SELL' : 'BUY',
+                        trade.type,
+                        trailingStopQuantity,
+                        trade.type === 'LONG' ? lastTp.price! - trade.entry : trade.entry - lastTp.price!,
+                        lastTp.price!, // Use last take profit as activation price
+                        tradeId
+                    )
+                );
+            }
         }
 
         return tpOrders;

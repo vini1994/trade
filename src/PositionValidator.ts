@@ -95,7 +95,7 @@ export class PositionValidator {
                 position,
                 message,
                 details: {
-                    entryPrice: parseFloat(position.entryPrice),
+                    entryPrice: parseFloat(position.avgPrice),
                     markPrice: parseFloat(position.markPrice),
                     unrealizedPnL: parseFloat(position.unRealizedProfit),
                     liquidationPrice: parseFloat(position.liquidationPrice),

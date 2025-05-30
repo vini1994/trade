@@ -1,5 +1,6 @@
 import WebSocket from 'ws';
 import * as dotenv from 'dotenv';
+import zlib from "zlib";
 
 // Load environment variables
 dotenv.config();
@@ -8,8 +9,6 @@ interface PriceData {
     symbol: string;
     price: number;
     timestamp: number;
-    volume24h?: number;
-    priceChange24h?: number;
 }
 
 export class BingXWebSocket {
@@ -31,13 +30,9 @@ export class BingXWebSocket {
         this.onPriceUpdate = onPriceUpdate || null;
     }
 
-    private getWebSocketUrl(): string {
-        return `${this.baseUrl}?symbol=${this.symbol}`;
-    }
-
     public connect(): void {
         try {
-            this.ws = new WebSocket(this.getWebSocketUrl());
+            this.ws = new WebSocket(this.baseUrl);
 
             this.ws.on('open', () => {
                 console.log(`WebSocket connected for ${this.symbol}`);
@@ -47,17 +42,36 @@ export class BingXWebSocket {
                 this.subscribe();
             });
 
-            this.ws.on('message', (data: WebSocket.Data) => {
+            this.ws.on('message', (data: WebSocket.RawData) => {
                 try {
-                    const message = JSON.parse(data.toString());
-                    // Handle pong message
-                    if (message.pong) {
+                    // Convert RawData to Buffer
+                    const buffer = Buffer.from(data as Buffer);
+                    let decodedMsg: string;
+                    let obj: any;
+
+                    // First try parsing as JSON directly
+                    try {
+                        decodedMsg = buffer.toString('utf-8');
+                        obj = JSON.parse(decodedMsg);
+                    } catch (parseError) {
+                        // If direct parsing fails, try decompressing
+                        try {
+                            decodedMsg = zlib.gunzipSync(buffer).toString('utf-8');
+                            obj = JSON.parse(decodedMsg);
+                        } catch (decompressError) {
+                            console.error('Failed to parse or decompress message:', decompressError);
+                            return;
+                        }
+                    }
+
+                    if (decodedMsg === "Pong") {
                         this.lastPongTime = Date.now();
                         return;
                     }
-                    this.handleMessage(message);
+
+                    this.handleMessage(obj);
                 } catch (error) {
-                    console.error('Error parsing WebSocket message:', error);
+                    console.error('Error handling WebSocket message:', error);
                 }
             });
 
@@ -129,27 +143,33 @@ export class BingXWebSocket {
         if (this.ws && this.ws.readyState === WebSocket.OPEN) {
             // Subscribe to ticker data for latest price
             const subscribeMessage = {
-                id: Date.now(),
+                //id: Date.now(),
+                id: "24dd0e35-56a4-4f7a-af8a-394c7060909c",
                 reqType: "sub",
-                dataType: "ticker", // This will give us the latest price updates
-                symbol: this.symbol
+                dataType: `${this.symbol}@lastPrice`,
+                symbol: `${this.symbol}`
             };
-
             this.ws.send(JSON.stringify(subscribeMessage));
+            
             console.log(`Subscribed to price updates for ${this.symbol}`);
         }
     }
 
     private handleMessage(message: any): void {
         try {
+            if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
+                console.error('WebSocket is not connected');
+                return;
+            }
+
+            console.log(message)
             // Handle different message types
-            if (message.data && message.dataType === 'ticker') {
+            if (message.data && message.data.c) {
+                let currentPrice = parseFloat(message.data.c)            
                 const priceData: PriceData = {
                     symbol: this.symbol,
-                    price: parseFloat(message.data.lastPrice || message.data.price),
-                    timestamp: message.data.timestamp || Date.now(),
-                    volume24h: message.data.volume24h ? parseFloat(message.data.volume24h) : undefined,
-                    priceChange24h: message.data.priceChange24h ? parseFloat(message.data.priceChange24h) : undefined
+                    price: currentPrice,
+                    timestamp: Date.now(),
                 };
 
                 // Log price update
@@ -188,61 +208,5 @@ export class BingXWebSocket {
         this.onPriceUpdate = callback;
     }
 
-    public getLatestPrice(): Promise<PriceData> {
-        return new Promise((resolve, reject) => {
-            if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
-                reject(new Error('WebSocket is not connected'));
-                return;
-            }
 
-            const requestId = Date.now();
-            const requestMessage = {
-                id: requestId,
-                reqType: "req",
-                dataType: "ticker",
-                symbol: this.symbol
-            };
-
-            // Set up a one-time message handler for this request
-            const messageHandler = (data: WebSocket.Data) => {
-                try {
-                    const message = JSON.parse(data.toString());
-                    if (message.id === requestId) {
-                        if (this.ws) {
-                            this.ws.removeListener('message', messageHandler);
-                        }
-                        
-                        if (message.data) {
-                            const priceData: PriceData = {
-                                symbol: this.symbol,
-                                price: parseFloat(message.data.lastPrice || message.data.price),
-                                timestamp: message.data.timestamp || Date.now(),
-                                volume24h: message.data.volume24h ? parseFloat(message.data.volume24h) : undefined,
-                                priceChange24h: message.data.priceChange24h ? parseFloat(message.data.priceChange24h) : undefined
-                            };
-                            resolve(priceData);
-                        } else {
-                            reject(new Error('Invalid price data received'));
-                        }
-                    }
-                } catch (error) {
-                    if (this.ws) {
-                        this.ws.removeListener('message', messageHandler);
-                    }
-                    reject(error);
-                }
-            };
-
-            this.ws.on('message', messageHandler);
-            this.ws.send(JSON.stringify(requestMessage));
-
-            // Set a timeout for the request
-            setTimeout(() => {
-                if (this.ws) {
-                    this.ws.removeListener('message', messageHandler);
-                }
-                reject(new Error('Price request timeout'));
-            }, 5000);
-        });
-    }
 } 

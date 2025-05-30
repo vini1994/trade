@@ -23,13 +23,6 @@ export class PositionMonitorCronJob {
             return;
         }
 
-        // Initial update
-        try {
-            console.log('Running initial position update...');
-            await this.positionMonitor.updatePositions();
-        } catch (error) {
-            console.error('Error in initial position update:', error);
-        }
 
         // Schedule the job to run every minute
         cron.schedule('* * * * *', async () => {

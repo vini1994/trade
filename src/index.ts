@@ -2,8 +2,8 @@ import { TradeCronJob } from './TradeCronJob';
 import { PositionMonitorCronJob } from './PositionMonitorCronJob';
 
 // Start trade cron job
-const tradeCronJob = new TradeCronJob();
-tradeCronJob.execute();
+//const tradeCronJob = new TradeCronJob();
+//tradeCronJob.execute();
 
 // Start position monitor cron job
 const positionMonitorCron = new PositionMonitorCronJob();
