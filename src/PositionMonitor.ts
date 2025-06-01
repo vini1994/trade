@@ -183,20 +183,20 @@ export class PositionMonitor {
             if (shouldUpdate) {
                 try {
                     // Cancel existing stop loss order
-                    await this.orderExecutor.cancelOrder(
-                        position.symbol,
-                        position.stopLossOrder.orderId
-                    );
+
 
                     // Place new stop loss order at breakeven + fees
-                    const newStopOrder = await this.orderExecutor.placeOrder(
+                    const newStopOrder = await this.orderExecutor.cancelReplaceOrder(
                         position.symbol,
                         positionSide === 'LONG' ? 'SELL' : 'BUY',
                         positionSide,
-                        'STOP_MARKET',
-                        0, // No price for STOP_MARKET orders
+                        'STOP',
+                        breakevenWithFees, 
                         breakevenWithFees,
-                        parseFloat(position.position.positionAmt)
+                        parseFloat(position.position.positionAmt),
+                        position.tradeId,
+                        position.stopLossOrder.orderId
+
                     );
 
                     // Update the monitored position with new stop loss order

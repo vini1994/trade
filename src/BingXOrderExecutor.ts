@@ -398,17 +398,78 @@ export class BingXOrderExecutor {
     }
 
     public async cancelOrder(pair: string, orderId: string): Promise<void> {
-        const path = '/openApi/swap/v2/trade/cancelOrder';
+        const path = '/openApi/swap/v2/trade/order';
         const params = {
             symbol: pair,
             orderId: orderId
         };
 
         try {
-            await this.apiClient.post(path, params);
+            await this.apiClient.delete(path, params);
         } catch (error) {
             console.error('Error canceling order:', error);
             throw error;
         }
     }
+
+    
+    public async cancelReplaceOrder(
+        pair: string,
+        side: 'BUY' | 'SELL',
+        positionSide: 'LONG' | 'SHORT',
+        type: 'MARKET' | 'LIMIT' | 'STOP' | 'STOP_MARKET' | 'TRIGGER_LIMIT',
+        price: number,
+        stopPrice: number,
+        quantity: number,
+        tradeId?: number,
+        orderId?: string
+    ): Promise<BingXOrderResponse> {
+        const normalizedPair = normalizeSymbolBingX(pair);
+        const path = '/openApi/swap/v1/trade/cancelReplace';
+        const params: any = {
+            symbol: normalizedPair,
+            side: side,
+            positionSide: positionSide,
+            type: type,
+            price: price.toString(),
+            stopPrice: stopPrice.toString(),
+            quantity: quantity.toString()
+        };
+
+        // Add activationPrice for TRIGGER_LIMIT orders
+        if (type === 'TRIGGER_LIMIT') {
+            params.activationPrice = price.toString();
+        }
+
+        if (orderId) {
+            params.cancelReplaceMode = "STOP_ON_FAILURE"
+            params.cancelOrderId = orderId
+        }
+
+        try {
+            const response = await this.apiClient.post<BingXOrderResponse>(path, params);
+            
+            // Save log if tradeId is provided
+            if (tradeId) {
+                await this.tradeDatabase.saveTradeLog(
+                    tradeId,
+                    normalizedPair,
+                    side,
+                    positionSide,
+                    type,
+                    price || null,
+                    stopPrice || null,
+                    quantity,
+                    response
+                );
+            }
+
+            return response;
+        } catch (error) {
+            console.error('Error placing order:', error);
+            throw error;
+        }
+    }
+
+
 } 
