@@ -37,27 +37,18 @@ export class BingXOrderExecutor {
             // Calculate base margin
             let totalMargin = this.margin;
 
-            console.log(`currentPrice:${currentPrice}`)
-            
-            console.log(`margin:${this.margin}`)
-
-            console.log(`volumeMarginPercentage:${this.volumeMarginPercentage}`)
             // Add volume-based margin if trade has volume_adds_margin
             if (trade?.volume_adds_margin) {
                 const additionalMargin = this.margin * (this.volumeMarginPercentage / 100);
                 totalMargin += additionalMargin;
             }
-            console.log(`totalMargin:${totalMargin}`)
-            console.log(`leverage:${leverage}`)
             
             // Calculate position value based on total margin and leverage
             const positionValue = totalMargin * leverage;
             
-            console.log(`positionValue:${positionValue}`)
             // Calculate quantity based on position value and current price
             const quantity = positionValue / currentPrice;
 
-            console.log(`quantity:${quantity}`)
             
             // Round to 4 decimal places
             return Math.floor(quantity * 10000) / 10000;
@@ -399,9 +390,10 @@ export class BingXOrderExecutor {
 
     public async cancelOrder(pair: string, orderId: string): Promise<void> {
         const path = '/openApi/swap/v2/trade/order';
+        const _orderId = BigInt(orderId)
         const params = {
             symbol: pair,
-            orderId: orderId
+            orderId: _orderId
         };
 
         try {

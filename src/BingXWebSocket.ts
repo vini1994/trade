@@ -162,7 +162,6 @@ export class BingXWebSocket {
                 return;
             }
 
-            console.log(message)
             // Handle different message types
             if (message.data && message.data.c) {
                 let currentPrice = parseFloat(message.data.c)            

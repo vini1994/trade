@@ -65,7 +65,6 @@ export class PositionMonitor {
     }
 
     private async updateMonitoredPosition(position: Position): Promise<void> {
-        console.log(this.monitoredPositions)
         const positionKey = this.getPositionKey(position.symbol, position.positionSide);
         const existingPosition = this.monitoredPositions.get(positionKey);
 
@@ -165,7 +164,6 @@ export class PositionMonitor {
         
         // Calculate reward (distance from entry to current price)
         const reward = Math.abs(currentPrice - entryPrice);
-        console.log(`Risk: ${risk}, Reward: ${reward}`);
         // Check if we've reached 1:1 risk/reward
         if (reward >= risk) {
             // Calculate breakeven + fees price considering leverage
