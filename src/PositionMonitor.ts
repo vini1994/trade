@@ -124,10 +124,11 @@ export class PositionMonitor {
             existingPosition.position = position;
             existingPosition.stopLossOrder = stopLossOrder;
             existingPosition.leverage = leverage;
-            if (!existingPosition.initialStopPrice && stopLossOrder) {
+            existingPosition.entryPrice = parseFloat(position.avgPrice);
+            if (stopLossOrder) {
                 existingPosition.initialStopPrice = parseFloat(stopLossOrder.stopPrice);
-                existingPosition.entryPrice = parseFloat(position.avgPrice);
             }
+
         }
 
         if (!existingPosition?.websocket){
@@ -155,17 +156,16 @@ export class PositionMonitor {
         }
 
         const entryPrice = position.entryPrice;
-        const initialStopPrice = position.initialStopPrice;
         const currentStopPrice = parseFloat(position.stopLossOrder.stopPrice);
         const positionSide = position.positionSide;
         const leverage = position.leverage;
 
         // Calculate risk (distance from entry to initial stop)
-        const risk = Math.abs(entryPrice - initialStopPrice);
+        const risk = Math.abs(entryPrice - currentStopPrice);
         
         // Calculate reward (distance from entry to current price)
         const reward = Math.abs(currentPrice - entryPrice);
-
+        console.log(`Risk: ${risk}, Reward: ${reward}`);
         // Check if we've reached 1:1 risk/reward
         if (reward >= risk) {
             // Calculate breakeven + fees price considering leverage
@@ -202,7 +202,6 @@ export class PositionMonitor {
                     // Update the monitored position with new stop loss order
                     position.stopLossOrder = {
                         ...position.stopLossOrder,
-                        orderId: newStopOrder.data.order.orderId,
                         stopPrice: breakevenWithFees.toString()
                     };
 
