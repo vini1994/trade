@@ -36,6 +36,7 @@ export class OrderStatusChecker {
 
     public async getOrderStatus(orderId: string): Promise<OrderStatus> {
         const path = '/openApi/swap/v2/trade/order';
+        const _orderId = BigInt(orderId)
         const params = {
             orderId: orderId
         };
