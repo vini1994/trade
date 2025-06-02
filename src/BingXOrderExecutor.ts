@@ -443,7 +443,7 @@ export class BingXOrderExecutor {
 
         if (orderId) {
             params.cancelReplaceMode = "STOP_ON_FAILURE"
-            params.cancelOrderId = orderId
+            params.cancelOrderId = BigInt(orderId)
         }
 
         try {
