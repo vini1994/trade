@@ -191,35 +191,35 @@ export class BingXOrderExecutor {
             // Single take profit: 90% of position
             tpQuantities.push(Math.floor(quantity * 0.9 * 10000) / 10000);
         } else if (takeProfits.length === 2) {
-            // Two take profits: 50% and 90% of remaining
+            // Two take profits: 50% and 40% of total position
             tpQuantities.push(Math.floor(quantity * 0.5 * 10000) / 10000);
-            tpQuantities.push(Math.floor(quantity * 0.4 * 10000) / 10000); // 90% of remaining 50%
+            tpQuantities.push(Math.floor(quantity * 0.4 * 10000) / 10000);
         } else if (takeProfits.length === 3) {
-            // Three take profits: 50%, 70% of remaining, 90% of remaining
+            // Three take profits: 50%, 30%, and 10% of total position
             tpQuantities.push(Math.floor(quantity * 0.5 * 10000) / 10000);
-            tpQuantities.push(Math.floor(quantity * 0.3 * 10000) / 10000); // 70% of remaining 50%
-            tpQuantities.push(Math.floor(quantity * 0.1 * 10000) / 10000); // 90% of remaining 15%
+            tpQuantities.push(Math.floor(quantity * 0.3 * 10000) / 10000);
+            tpQuantities.push(Math.floor(quantity * 0.1 * 10000) / 10000);
         } else if (takeProfits.length === 4) {
-            // Four take profits: 40%, 60% of remaining, 80% of remaining, 90% of remaining
+            // Four take profits: 50%, 20%, 10%, and 10% of total position
             tpQuantities.push(Math.floor(quantity * 0.5 * 10000) / 10000);
-            tpQuantities.push(Math.floor(quantity * 0.2 * 10000) / 10000); // 60% of remaining 60%
-            tpQuantities.push(Math.floor(quantity * 0.1 * 10000) / 10000); // 80% of remaining 30%
-            tpQuantities.push(Math.floor(quantity * 0.1 * 10000) / 10000); // 90% of remaining 12%
+            tpQuantities.push(Math.floor(quantity * 0.2 * 10000) / 10000);
+            tpQuantities.push(Math.floor(quantity * 0.1 * 10000) / 10000);
+            tpQuantities.push(Math.floor(quantity * 0.1 * 10000) / 10000);
         } else if (takeProfits.length === 5) {
-            // Five take profits: 30%, 45% of remaining, 60% of remaining, 75% of remaining, 90% of remaining
+            // Five take profits: 50%, 20%, 10%, 5%, and 5% of total position
             tpQuantities.push(Math.floor(quantity * 0.5 * 10000) / 10000);
-            tpQuantities.push(Math.floor(quantity * 0.2 * 10000) / 10000); // 45% of remaining 70%
-            tpQuantities.push(Math.floor(quantity * 0.1 * 10000) / 10000); // 60% of remaining 49%
-            tpQuantities.push(Math.floor(quantity * 0.05 * 10000) / 10000); // 75% of remaining 28%
-            tpQuantities.push(Math.floor(quantity * 0.05 * 10000) / 10000); // 90% of remaining 15%
+            tpQuantities.push(Math.floor(quantity * 0.2 * 10000) / 10000);
+            tpQuantities.push(Math.floor(quantity * 0.1 * 10000) / 10000);
+            tpQuantities.push(Math.floor(quantity * 0.05 * 10000) / 10000);
+            tpQuantities.push(Math.floor(quantity * 0.05 * 10000) / 10000);
         } else if (takeProfits.length === 6) {
-            // Six take profits: 25%, 40% of remaining, 55% of remaining, 70% of remaining, 85% of remaining, 95% of remaining
+            // Six take profits: 50%, 20%, 5%, 5%, 5%, and 5% of total position
             tpQuantities.push(Math.floor(quantity * 0.5 * 10000) / 10000);
-            tpQuantities.push(Math.floor(quantity * 0.2 * 10000) / 10000); // 40% of remaining 75%
-            tpQuantities.push(Math.floor(quantity * 0.05 * 10000) / 10000); // 55% of remaining 57%
-            tpQuantities.push(Math.floor(quantity * 0.05 * 10000) / 10000); // 70% of remaining 39%
-            tpQuantities.push(Math.floor(quantity * 0.05 * 10000) / 10000); // 85% of remaining 24%
-            tpQuantities.push(Math.floor(quantity * 0.05 * 10000) / 10000); // 95% of remaining 12%
+            tpQuantities.push(Math.floor(quantity * 0.2 * 10000) / 10000);
+            tpQuantities.push(Math.floor(quantity * 0.05 * 10000) / 10000);
+            tpQuantities.push(Math.floor(quantity * 0.05 * 10000) / 10000);
+            tpQuantities.push(Math.floor(quantity * 0.05 * 10000) / 10000);
+            tpQuantities.push(Math.floor(quantity * 0.05 * 10000) / 10000);
         }
 
         // Calculate total of take profit quantities
