@@ -130,6 +130,39 @@ export class TradeCronJob {
                 const { data: klineData, source } = await this.dataServiceManager.getKlineData(trade.pair);
                 this.consoleChartService.drawChart(klineData, trade.pair);
 
+                // Check if BingX API credentials are available
+                const bingxApiKey = process.env.BINGX_API_KEY;
+                const bingxApiSecret = process.env.BINGX_API_SECRET;
+
+                if (!bingxApiKey || !bingxApiSecret) {
+                    console.log('\nTrade Execution Skipped:');
+                    console.log('BingX API credentials not configured. Please set bingx_api_key and bingx_api_secret environment variables.');
+                    console.log('----------------------------------------');
+                    
+                    // Send notification about skipped execution
+                    await this.notificationService.sendTradeNotification({
+                        symbol: trade.pair,
+                        type: trade.side,
+                        entry: trade.entry,
+                        stop: trade.stop,
+                        takeProfits: {
+                            tp1: trade.tp1,
+                            tp2: trade.tp2,
+                            tp3: trade.tp3,
+                            tp4: trade.tp4,
+                            tp5: trade.tp5,
+                            tp6: trade.tp6
+                        },
+                        validation: validationResult,
+                        analysisUrl: trade.url_analysis,
+                        executionError: 'BingX API credentials not configured',
+                        volume_adds_margin: trade.volume_adds_margin,
+                        setup_description: trade.setup_description,
+                        volume_required: trade.volume_required
+                    });
+                    continue;
+                }
+
                 // Execute the trade using TradeExecutor
                 try {
                     const executionResult = await this.tradeExecutor.executeTrade({
