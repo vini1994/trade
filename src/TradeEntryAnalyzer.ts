@@ -99,13 +99,13 @@ export class TradeEntryAnalyzer {
             }
             if (entryConditionMet && hasClosePriceBeforeEntry){
                 // Validate risk-reward ratio
-                if (riskRewardRatio < 0.8) {
+                if (riskRewardRatio < 0.9) {
                     return {
                         canEnter: false,
                         currentClose,
                         hasClosePriceBeforeEntry,
                         warning: entryConditionMet && hasClosePriceBeforeEntry,
-                        message: `Invalid risk-reward ratio. Distance to TP1 (${entryToTP1Distance}) is less than 80% of distance to stop (${entryToStopDistance})`
+                        message: `Invalid risk-reward ratio. Distance to TP1 (${entryToTP1Distance}) is less than 90% of distance to stop (${entryToStopDistance})`
                     };
                 }
                 
