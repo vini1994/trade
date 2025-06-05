@@ -59,20 +59,26 @@ export class TradeOrderProcessor {
 
     public async processTrades(monitoredPositions: Map<string, MonitoredPosition>): Promise<void> {
         try {
+
             // Get all open trades from the database
             const openTrades = await this.tradeDatabase.getOpenTrades();
             console.log(`Found ${openTrades.length} open trades to process`);
 
             for (const trade of openTrades) {
-                // Check if trade has a monitored position using both symbol and positionSide
-                const positionKey = this.getPositionKey(trade.symbol, trade.type);
-                const monitoredPosition = monitoredPositions.get(positionKey);
-                
-                if (!monitoredPosition) {
-                    console.log(`No monitored position found for trade ${trade.id} (${trade.symbol} ${trade.type}), cancelling orders and closing trade`);
-                    await this.cancelAndCloseTrade(trade);
-                    continue;
+            
+                if (monitoredPositions.size !== 0) {
+                    // Check if trade has a monitored position using both symbol and positionSide
+                    const positionKey = this.getPositionKey(trade.symbol, trade.type);
+                    const monitoredPosition = monitoredPositions.get(positionKey);
+                    
+                    if (!monitoredPosition) {
+                        console.log(`No monitored position found for trade ${trade.id} (${trade.symbol} ${trade.type}), cancelling orders and closing trade`);
+                        await this.cancelAndCloseTrade(trade);
+                        continue;
+                    }
+
                 }
+
 
                 await this.processTrade(trade);
             }
@@ -120,7 +126,7 @@ export class TradeOrderProcessor {
     private async processTrade(trade: TradeRecord): Promise<void> {
         try {
             // Collect all order IDs that need to be checked
-            const orderIds = [
+            const allOrderIds = [
                 trade.entryOrderId,
                 trade.stopOrderId,
                 trade.tp1OrderId,
@@ -130,7 +136,10 @@ export class TradeOrderProcessor {
                 trade.tp5OrderId,
                 trade.tp6OrderId,
                 trade.trailingStopOrderId
-            ].filter(id => id !== null);
+            ];
+            
+            const orderIds: string[] = allOrderIds
+                .filter((id): id is string => id !== null && id !== 'pending');
 
             // Get status for all orders
             const orderStatuses = await this.orderStatusChecker.getMultipleOrderStatus(orderIds);
