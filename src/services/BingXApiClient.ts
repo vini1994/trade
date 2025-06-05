@@ -163,79 +163,142 @@ export class BingXApiClient {
         }
     }
 
+    private async sleep(ms: number): Promise<void> {
+        return new Promise(resolve => setTimeout(resolve, ms));
+    }
+
+    private async makeRequestWithRetry<T = any>(
+        method: string,
+        path: string,
+        params: Record<string, any> = {},
+        data?: Record<string, any>,
+        maxRetries: number = 3
+    ): Promise<T> {
+        let lastError: Error | null = null;
+        
+        for (let attempt = 1; attempt <= maxRetries; attempt++) {
+            try {
+                const requestId = crypto.randomUUID();
+                const timestamp = Date.now().toString();
+                
+                // Add timestamp to params
+                const requestParams = this.getParameters(params, timestamp, false);
+                const encodedParams = this.getParameters(params, timestamp, true);
+                const signature = this.generateSignature(requestParams);
+                const url = `${this.baseUrl}${path}?${encodedParams}&signature=${signature}`;
+
+                logger.info(`Making ${method} request (attempt ${attempt}/${maxRetries})`, {
+                    requestId,
+                    path,
+                    params: { requestParams },
+                    headers: this.getHeaders(),
+                    body: data
+                });
+
+                const config: AxiosRequestConfig = {
+                    method,
+                    url,
+                    headers: this.getHeaders(),
+                    data,
+                    transformResponse: [(data) => this.handleBigIntResponse(data)]
+                };
+
+                const startTime = Date.now();
+                const response: AxiosResponse<T> = await axios(config);
+                const duration = Date.now() - startTime;
+
+                // Check for busy system response
+                if (response.status === 200 && 
+                    response.data && 
+                    typeof response.data === 'object' && 
+                    'code' in response.data && 
+                    response.data.code === 80012) {
+                    
+                    // Generate random delay between 1 and 30 seconds
+                    const delay = Math.floor(Math.random() * 30000) + 1000;
+                    logger.warn(`System busy response received, retrying after ${delay}ms`, {
+                        requestId,
+                        path,
+                        attempt,
+                        maxRetries,
+                        responseData: response.data
+                    });
+                    
+                    await this.sleep(delay);
+                    continue;
+                }
+
+                logger.info(`${method} request successful`, {
+                    requestId,
+                    path,
+                    duration,
+                    statusCode: response.status,
+                    responseHeaders: response.headers,
+                    responseData: response.data
+                });
+
+                return response.data;
+            } catch (error) {
+                lastError = error instanceof Error ? error : new Error('Unknown error');
+                
+                if (axios.isAxiosError(error) && 
+                    error.response?.status === 200 && 
+                    error.response?.data?.code === 80012) {
+                    
+                    // Generate random delay between 1 and 30 seconds
+                    const delay = Math.floor(Math.random() * 30000) + 1000;
+                    logger.warn(`System busy response received, retrying after ${delay}ms`, {
+                        path,
+                        attempt,
+                        maxRetries,
+                        responseData: error.response.data
+                    });
+                    
+                    await this.sleep(delay);
+                    continue;
+                }
+
+                if (attempt === maxRetries) {
+                    if (axios.isAxiosError(error)) {
+                        const errorData = {
+                            path,
+                            statusCode: error.response?.status,
+                            errorMessage: error.response?.data?.msg || error.message,
+                            responseData: error.response?.data,
+                            responseHeaders: error.response?.headers
+                        };
+                        logger.error(`${method} request failed after ${maxRetries} attempts`, errorData);
+                        throw new Error(`BingX API Error: ${error.response?.data?.msg || error.message}`);
+                    }
+                    logger.error(`Unexpected error in ${method} request after ${maxRetries} attempts`, {
+                        path,
+                        error: lastError.message
+                    });
+                    throw lastError;
+                }
+
+                // For other errors, wait a bit before retrying
+                const delay = Math.floor(Math.random() * 5000) + 1000;
+                logger.warn(`Request failed, retrying after ${delay}ms`, {
+                    path,
+                    attempt,
+                    maxRetries,
+                    error: lastError.message
+                });
+                await this.sleep(delay);
+            }
+        }
+
+        throw lastError || new Error('Request failed after all retries');
+    }
+
     private async makeRequest<T = any>(
         method: string,
         path: string,
         params: Record<string, any> = {},
         data?: Record<string, any>
     ): Promise<T> {
-        const requestId = crypto.randomUUID();
-        const timestamp = Date.now().toString();
-
-        
-        
-        // Add timestamp to params
-        const requestParams = this.getParameters(params, timestamp, false);
-
-        const encodedParams = this.getParameters(params, timestamp, true);
-        
-
-        const signature = this.generateSignature(requestParams);
-
-        const url = `${this.baseUrl}${path}?${encodedParams}&signature=${signature}`;
-
-        logger.info(`Making ${method} request`, {
-            requestId,
-            path,
-            params: { requestParams },
-            headers: this.getHeaders(),
-            body: data
-        });
-
-        const config: AxiosRequestConfig = {
-            method,
-            url,
-            headers: this.getHeaders(),
-            data,
-            transformResponse: [(data) => this.handleBigIntResponse(data)]
-        };
-
-        try {
-            const startTime = Date.now();
-            const response: AxiosResponse<T> = await axios(config);
-            const duration = Date.now() - startTime;
-
-            logger.info(`${method} request successful`, {
-                requestId,
-                path,
-                duration,
-                statusCode: response.status,
-                responseHeaders: response.headers,
-                responseData: response.data
-            });
-
-            return response.data;
-        } catch (error) {
-            if (axios.isAxiosError(error)) {
-                const errorData = {
-                    requestId,
-                    path,
-                    statusCode: error.response?.status,
-                    errorMessage: error.response?.data?.msg || error.message,
-                    responseData: error.response?.data,
-                    responseHeaders: error.response?.headers
-                };
-
-                logger.error(`${method} request failed`, errorData);
-                throw new Error(`BingX API Error: ${error.response?.data?.msg || error.message}`);
-            }
-            logger.error(`Unexpected error in ${method} request`, {
-                requestId,
-                path,
-                error: error instanceof Error ? error.message : 'Unknown error'
-            });
-            throw error;
-        }
+        return this.makeRequestWithRetry<T>(method, path, params, data);
     }
 
     public async get<T = any>(path: string, params: Record<string, any> = {}): Promise<T> {
