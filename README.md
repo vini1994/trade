@@ -94,16 +94,16 @@ BINGX_API_SECRET=your_bingx_api_secret
 
 1. Development mode:
 ```bash
-npm run dev
+npm run dev:all
 # or
-pnpm dev
+pnpm dev:all
 ```
 
-2. Build the project:
+2. Build the project: 
 ```bash
-npm run build
+npm run build:all
 # or
-pnpm build
+pnpm build:all
 ```
 
 3. Run tests:
@@ -175,8 +175,8 @@ The system implements a comprehensive set of validation rules to ensure safe and
      - Lower wick must not exceed 80% of total candle height
 
 4. **Risk-Reward Validation**
-   - Distance to TP1 must be at least 80% of distance to stop loss
-   - Formula: `|entry - tp1| / |entry - stop| >= 0.8`
+   - Distance to TP1 must be at least 90% of distance to stop loss
+   - Formula: `|entry - tp1| / |entry - stop| >= 0.9`
 
 ### Volume Analysis
 
