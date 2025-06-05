@@ -1,7 +1,7 @@
 import { PositionValidator } from './PositionValidator';
 import { BingXWebSocket } from './BingXWebSocket';
 import { TradeDatabase } from './TradeDatabase';
-import { Position } from './utils/types';
+import { Position, MonitoredPosition } from './utils/types';
 import { OrderMonitor, Order } from './OrderMonitor';
 import { BingXOrderExecutor } from './BingXOrderExecutor';
 import { normalizeSymbolBingX } from './utils/bingxUtils';
@@ -9,19 +9,6 @@ import * as dotenv from 'dotenv';
 
 // Load environment variables
 dotenv.config();
-
-interface MonitoredPosition {
-    symbol: string;
-    positionSide: 'LONG' | 'SHORT';
-    position: Position;
-    websocket: BingXWebSocket;
-    tradeId?: number;
-    lastPrice?: number;
-    stopLossOrder?: Order;
-    initialStopPrice?: number;
-    entryPrice?: number;
-    leverage?: number;
-}
 
 export class PositionMonitor {
     private positionValidator: PositionValidator;
@@ -115,9 +102,6 @@ export class PositionMonitor {
             }
         }
 
-
-
-
         if (existingPosition) {
             // Update existing position
             existingPosition.position = position;
@@ -180,8 +164,6 @@ export class PositionMonitor {
 
             if (shouldUpdate) {
                 try {
-                    // Cancel existing stop loss order
-
 
                     // Place new stop loss order at breakeven + fees
                     const newStopOrder = await this.orderExecutor.cancelReplaceOrder(
@@ -194,7 +176,6 @@ export class PositionMonitor {
                         parseFloat(position.position.positionAmt),
                         position.tradeId,
                         position.stopLossOrder.orderId
-
                     );
 
                     // Update the monitored position with new stop loss order
@@ -276,6 +257,10 @@ export class PositionMonitor {
 
     public getMonitoredPosition(symbol: string, positionSide: 'LONG' | 'SHORT'): MonitoredPosition | undefined {
         return this.monitoredPositions.get(this.getPositionKey(symbol, positionSide));
+    }
+
+    public getMonitoredPositionsMap(): Map<string, MonitoredPosition> {
+        return new Map(this.monitoredPositions);
     }
 
     public disconnect(): void {

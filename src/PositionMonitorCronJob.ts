@@ -1,8 +1,10 @@
 import * as cron from 'node-cron';
 import { PositionMonitor } from './PositionMonitor';
+import { TradeOrderProcessor } from './TradeOrderProcessor';
 
 export class PositionMonitorCronJob {
     private positionMonitor: PositionMonitor;
+    private tradeOrderProcessor: TradeOrderProcessor;
     private isRunning: boolean = false;
 
     constructor() {
@@ -15,6 +17,7 @@ export class PositionMonitorCronJob {
                 }
             }
         });
+        this.tradeOrderProcessor = new TradeOrderProcessor();
     }
 
     public async start(): Promise<void> {
@@ -29,6 +32,8 @@ export class PositionMonitorCronJob {
             try {
                 console.log(`\n[${new Date().toLocaleString()}] Running position update...`);
                 await this.positionMonitor.updatePositions();
+                const monitoredPositions = this.positionMonitor.getMonitoredPositionsMap();
+                await this.tradeOrderProcessor.processTrades(monitoredPositions);
                 
                 // Log current monitored positions
                 const positions = this.positionMonitor.getMonitoredPositions();
