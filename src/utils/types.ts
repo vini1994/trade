@@ -1,3 +1,6 @@
+import { BingXWebSocket } from '../BingXWebSocket';
+import { Order } from '../OrderMonitor';
+
 export interface KlineData {
     openTime: number;
     open: string;
@@ -116,4 +119,17 @@ export interface BingXPositionResponse {
     code: number;
     msg: string;
     data: Position[];
+}
+
+export interface MonitoredPosition {
+    symbol: string;
+    positionSide: 'LONG' | 'SHORT';
+    position: Position;
+    websocket: BingXWebSocket;
+    tradeId?: number;
+    lastPrice?: number;
+    stopLossOrder?: Order;
+    initialStopPrice?: number;
+    entryPrice?: number;
+    leverage?: number;
 } 
