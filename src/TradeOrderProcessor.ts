@@ -1,5 +1,8 @@
 import { TradeDatabase } from './TradeDatabase';
 import { OrderStatusChecker } from './OrderStatusChecker';
+import { BingXOrderExecutor } from './BingXOrderExecutor';
+import { MonitoredPosition } from './utils/types';
+import { normalizeSymbolBingX } from './utils/bingxUtils';
 import * as dotenv from 'dotenv';
 
 // Load environment variables
@@ -37,27 +40,79 @@ interface TradeRecord {
 export class TradeOrderProcessor {
     private readonly tradeDatabase: TradeDatabase;
     private readonly orderStatusChecker: OrderStatusChecker;
+    private readonly orderExecutor: BingXOrderExecutor;
     private readonly limitOrderFee: number;
     private readonly marketOrderFee: number;
 
     constructor() {
         this.tradeDatabase = new TradeDatabase();
         this.orderStatusChecker = new OrderStatusChecker();
+        this.orderExecutor = new BingXOrderExecutor();
         this.limitOrderFee = parseFloat(process.env.BINGX_LIMIT_ORDER_FEE || '0.0002');
         this.marketOrderFee = parseFloat(process.env.BINGX_MARKET_ORDER_FEE || '0.0005');
     }
 
-    public async processTrades(): Promise<void> {
+    private getPositionKey(symbol: string, positionSide: 'LONG' | 'SHORT'): string {
+        const normalizedSymbol = normalizeSymbolBingX(symbol);
+        return `${normalizedSymbol}_${positionSide}`;
+    }
+
+    public async processTrades(monitoredPositions: Map<string, MonitoredPosition>): Promise<void> {
         try {
             // Get all open trades from the database
             const openTrades = await this.tradeDatabase.getOpenTrades();
             console.log(`Found ${openTrades.length} open trades to process`);
 
             for (const trade of openTrades) {
+                // Check if trade has a monitored position using both symbol and positionSide
+                const positionKey = this.getPositionKey(trade.symbol, trade.type);
+                const monitoredPosition = monitoredPositions.get(positionKey);
+                
+                if (!monitoredPosition) {
+                    console.log(`No monitored position found for trade ${trade.id} (${trade.symbol} ${trade.type}), cancelling orders and closing trade`);
+                    await this.cancelAndCloseTrade(trade);
+                    continue;
+                }
+
                 await this.processTrade(trade);
             }
         } catch (error) {
             console.error('Error processing trades:', error);
+            throw error;
+        }
+    }
+
+    private async cancelAndCloseTrade(trade: TradeRecord): Promise<void> {
+        try {
+            // Collect all active order IDs that need to be cancelled
+            const orderIds = [
+                trade.entryOrderId,
+                trade.stopOrderId,
+                trade.tp1OrderId,
+                trade.tp2OrderId,
+                trade.tp3OrderId,
+                trade.tp4OrderId,
+                trade.tp5OrderId,
+                trade.tp6OrderId,
+                trade.trailingStopOrderId
+            ].filter(id => id !== null);
+
+            // Get status for all orders
+            const orderStatuses = await this.orderStatusChecker.getMultipleOrderStatus(orderIds);
+
+            // Cancel all active orders
+            for (const [orderId, status] of orderStatuses) {
+                if (status && status.status === 'NEW') {
+                    console.log(`Cancelling order ${orderId} for trade ${trade.id}`);
+                    await this.orderExecutor.cancelOrder(trade.symbol, orderId);
+                }
+            }
+
+            // Mark trade as closed
+            await this.tradeDatabase.updateTradeStatus(trade.id, 'CLOSED');
+            console.log(`Trade ${trade.id} marked as CLOSED due to no monitored position`);
+        } catch (error) {
+            console.error(`Error cancelling and closing trade ${trade.id}:`, error);
             throw error;
         }
     }
