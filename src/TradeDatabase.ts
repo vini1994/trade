@@ -1,7 +1,7 @@
 import sqlite3 from 'sqlite3';
 import { open } from 'sqlite';
 import * as path from 'path';
-import { Trade, TradeRecord, BingXOrderResponse, OrderDetails } from './utils/types';
+import { Trade, TradeRecord, BingXOrderResponse, OrderDetails, TradeNotification } from './utils/types';
 import * as dotenv from 'dotenv';
 
 // Load environment variables
@@ -91,6 +91,31 @@ export class TradeDatabase {
                 orderResponse TEXT NOT NULL,
                 createdAt TEXT NOT NULL,
                 FOREIGN KEY (tradeId) REFERENCES trades(id)
+            )
+        `);
+
+        await this.db.exec(`
+            CREATE TABLE IF NOT EXISTS trade_notifications (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                symbol TEXT NOT NULL,
+                type TEXT NOT NULL,
+                entry REAL NOT NULL,
+                stop REAL NOT NULL,
+                tp1 REAL,
+                tp2 REAL,
+                tp3 REAL,
+                tp4 REAL,
+                tp5 REAL,
+                tp6 REAL,
+                is_valid BOOLEAN NOT NULL,
+                is_warning BOOLEAN NOT NULL DEFAULT 0,
+                execution_error TEXT,
+                volume_required BOOLEAN NOT NULL DEFAULT 0,
+                volume_adds_margin BOOLEAN NOT NULL DEFAULT 0,
+                setup_description TEXT,
+                notification_data TEXT NOT NULL,
+                timestamp TEXT NOT NULL,
+                createdAt TEXT NOT NULL
             )
         `);
     }
@@ -366,5 +391,110 @@ export class TradeDatabase {
 
     public async getTradeLogs(tradeId: number): Promise<any[]> {
         return await this.db.all('SELECT * FROM trade_logs WHERE tradeId = ? ORDER BY timestamp DESC', [tradeId]);
+    }
+
+    public async saveTradeNotification(notification: TradeNotification): Promise<void> {
+        const now = new Date().toISOString();
+        
+        await this.db.run(`
+            INSERT INTO trade_notifications (
+                symbol,
+                type,
+                entry,
+                stop,
+                tp1,
+                tp2,
+                tp3,
+                tp4,
+                tp5,
+                tp6,
+                is_valid,
+                is_warning,
+                execution_error,
+                volume_required,
+                volume_adds_margin,
+                setup_description,
+                notification_data,
+                timestamp,
+                createdAt
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `, [
+            notification.symbol,
+            notification.type,
+            notification.entry,
+            notification.stop,
+            notification.takeProfits.tp1,
+            notification.takeProfits.tp2,
+            notification.takeProfits.tp3,
+            notification.takeProfits.tp4,
+            notification.takeProfits.tp5,
+            notification.takeProfits.tp6,
+            notification.validation.isValid ? 1 : 0,
+            notification.isWarning ? 1 : 0,
+            notification.executionError || null,
+            notification.volume_required ? 1 : 0,
+            notification.volume_adds_margin ? 1 : 0,
+            notification.setup_description,
+            JSON.stringify(notification),
+            notification.timestamp,
+            now
+        ]);
+    }
+
+    public async getTradeNotifications(
+        filters: {
+            symbol?: string;
+            type?: 'LONG' | 'SHORT';
+            is_valid?: boolean;
+            is_warning?: boolean;
+            volume_required?: boolean;
+            volume_adds_margin?: boolean;
+            start_date?: string;
+            end_date?: string;
+        } = {}
+    ): Promise<TradeNotification[]> {
+        const conditions = [];
+        const values = [];
+
+        if (filters.symbol) {
+            conditions.push('symbol = ?');
+            values.push(filters.symbol);
+        }
+        if (filters.type) {
+            conditions.push('type = ?');
+            values.push(filters.type);
+        }
+        if (filters.is_valid !== undefined) {
+            conditions.push('is_valid = ?');
+            values.push(filters.is_valid ? 1 : 0);
+        }
+        if (filters.is_warning !== undefined) {
+            conditions.push('is_warning = ?');
+            values.push(filters.is_warning ? 1 : 0);
+        }
+        if (filters.volume_required !== undefined) {
+            conditions.push('volume_required = ?');
+            values.push(filters.volume_required ? 1 : 0);
+        }
+        if (filters.volume_adds_margin !== undefined) {
+            conditions.push('volume_adds_margin = ?');
+            values.push(filters.volume_adds_margin ? 1 : 0);
+        }
+        if (filters.start_date) {
+            conditions.push('timestamp >= ?');
+            values.push(filters.start_date);
+        }
+        if (filters.end_date) {
+            conditions.push('timestamp <= ?');
+            values.push(filters.end_date);
+        }
+
+        const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+        const rows = (await this.db.all(
+            `SELECT notification_data FROM trade_notifications ${whereClause} ORDER BY timestamp DESC`,
+            values
+        )) as { notification_data: string }[];
+
+        return rows.map(row => JSON.parse(row.notification_data));
     }
 } 

@@ -178,7 +178,8 @@ export class TradeCronJob {
                         tp6: trade.tp6,
                         volume_adds_margin: trade.volume_adds_margin,
                         setup_description: trade.setup_description,
-                        volume_required: trade.volume_required
+                        volume_required: trade.volume_required,
+                        modify_tp1: false
                     });
 
                     if (executionResult.success) {
