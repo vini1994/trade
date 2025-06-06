@@ -1,6 +1,7 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import TradeList from '../views/TradeList.vue'
 import TradeForm from '../views/TradeForm.vue'
+import NotificationsHistory from '../views/NotificationsHistory.vue'
 
 const router = createRouter({
   history: createWebHistory(),
@@ -19,6 +20,11 @@ const router = createRouter({
       path: '/trade/:id/edit',
       name: 'edit-trade',
       component: TradeForm
+    },
+    {
+      path: '/notifications',
+      name: 'notifications',
+      component: NotificationsHistory
     }
   ]
 })

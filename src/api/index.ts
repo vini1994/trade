@@ -4,6 +4,7 @@ import cors from 'cors';
 import { WebSocketServer, WebSocket } from 'ws';
 import { createServer } from 'http';
 import tradeRoutes from './routes/tradeRoutes';
+import notificationRoutes from './routes/notificationRoutes';
 
 const app = express();
 const server = createServer(app);
@@ -35,6 +36,7 @@ app.use(express.json());
 
 // API Routes
 app.use('/api', tradeRoutes);
+app.use('/api', notificationRoutes);
 
 // Notification endpoint
 app.post('/api/notification', (req, res) => {
