@@ -29,6 +29,7 @@ export interface Trade {
     volume_adds_margin: boolean;
     setup_description: string | null;
     volume_required: boolean;
+    modify_tp1?: boolean;
 }
 
 export interface BingXOrderResponse {
@@ -132,4 +133,54 @@ export interface MonitoredPosition {
     initialStopPrice?: number;
     entryPrice?: number;
     leverage?: number;
+}
+
+export interface TradeNotification {
+    symbol: string;
+    type: 'LONG' | 'SHORT';
+    entry: number;
+    stop: number;
+    takeProfits: {
+        tp1: number | null;
+        tp2: number | null;
+        tp3: number | null;
+        tp4: number | null;
+        tp5: number | null;
+        tp6: number | null;
+    };
+    validation: {
+        isValid: boolean;
+        message: string;
+        volumeAnalysis: {
+            color: string;
+            stdBar: number;
+            currentVolume: number;
+            mean: number;
+            std: number;
+        };
+        entryAnalysis: {
+            currentClose: number;
+            canEnter: boolean;
+            hasClosePriceBeforeEntry: boolean;
+            message: string;
+        };
+    };
+    analysisUrl: string;
+    executionResult?: {
+        leverage: number;
+        quantity: number;
+        entryOrderId: string;
+        stopOrderId: string;
+        volumeMarginAdded?: {
+            percentage: number;
+            baseMargin: number;
+            totalMargin: number;
+        };
+    };
+    executionError?: string;
+    timestamp: string;
+    isWarning?: boolean;
+    volume_required: boolean;
+    volume_adds_margin: boolean;
+    setup_description: string | null;
 } 
