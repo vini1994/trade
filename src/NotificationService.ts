@@ -1,60 +1,14 @@
 import axios from 'axios';
-
-interface TradeNotification {
-    symbol: string;
-    type: 'LONG' | 'SHORT';
-    entry: number;
-    stop: number;
-    takeProfits: {
-        tp1: number | null;
-        tp2: number | null;
-        tp3: number | null;
-        tp4: number | null;
-        tp5: number | null;
-        tp6: number | null;
-    };
-    validation: {
-        isValid: boolean;
-        message: string;
-        volumeAnalysis: {
-            color: string;
-            stdBar: number;
-            currentVolume: number;
-            mean: number;
-            std: number;
-        };
-        entryAnalysis: {
-            currentClose: number;
-            canEnter: boolean;
-            hasClosePriceBeforeEntry: boolean;
-            message: string;
-        };
-    };
-    analysisUrl: string;
-    executionResult?: {
-        leverage: number;
-        quantity: number;
-        entryOrderId: string;
-        stopOrderId: string;
-        volumeMarginAdded?: {
-            percentage: number;
-            baseMargin: number;
-            totalMargin: number;
-        };
-    };
-    executionError?: string;
-    timestamp: string;
-    isWarning?: boolean;
-    volume_required: boolean;
-    volume_adds_margin: boolean;
-    setup_description: string | null;
-}
+import { TradeNotification } from './utils/types';
+import { TradeDatabase } from './TradeDatabase';
 
 export class NotificationService {
     private readonly apiUrl: string;
+    private readonly tradeDatabase: TradeDatabase;
 
     constructor(apiUrl: string = process.env.NOTIFICATION_API_URL || 'http://localhost:3000/api/notification') {
         this.apiUrl = apiUrl;
+        this.tradeDatabase = new TradeDatabase();
     }
 
     public async sendTradeNotification(trade: Omit<TradeNotification, 'timestamp'>): Promise<void> {
@@ -63,6 +17,11 @@ export class NotificationService {
                 ...trade,
                 timestamp: new Date().toISOString()
             };
+
+            // Save notification to database
+            await this.tradeDatabase.saveTradeNotification(notificationWithTimestamp);
+
+            // Send notification to API
             const response = await axios.post(this.apiUrl, notificationWithTimestamp);
             console.log('Trade notification sent successfully:', response.status);
         } catch (error) {
