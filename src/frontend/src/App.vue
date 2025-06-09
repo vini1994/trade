@@ -15,13 +15,13 @@
       <component :is="Component" />
     </router-view>
 
-    <TradeNotifications />
+    
   </div>
 </template>
 
 <script setup lang="ts">
 import { onMounted } from 'vue'
-import TradeNotifications from './components/TradeNotifications.vue'
+
 
 // Initialize dark mode
 onMounted(() => {
