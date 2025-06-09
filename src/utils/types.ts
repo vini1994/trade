@@ -29,7 +29,7 @@ export interface Trade {
     volume_adds_margin: boolean;
     setup_description: string | null;
     volume_required: boolean;
-    modify_tp1?: boolean;
+    modify_tp1?: boolean | false;
 }
 
 export interface BingXOrderResponse {
@@ -183,4 +183,5 @@ export interface TradeNotification {
     volume_required: boolean;
     volume_adds_margin: boolean;
     setup_description: string | null;
+    manually_generated?: boolean;
 } 
