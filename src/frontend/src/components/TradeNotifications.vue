@@ -12,7 +12,7 @@
         <span class="badge" :class="connectionStatusClass">{{ connectionStatus }}</span>
       </div>
       <div class="card-body">
-        <TradeListNotifications :trades="trades" />
+        <TradeListNotifications :trades="trades" :key="trades.length" />
       </div>
     </div>
   </div>

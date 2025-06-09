@@ -1,12 +1,12 @@
 import { Request, Response } from 'express';
-import { NotificationService } from '../services/notificationService';
+import { NotificationTradeService } from '../services/notificationTradeService';
 import { TradeNotification } from '../../utils/types';
 
 export class NotificationController {
-    private notificationService: NotificationService;
+    private notificationService: NotificationTradeService;
 
     constructor() {
-        this.notificationService = new NotificationService();
+        this.notificationService = new NotificationTradeService();
     }
 
     async getNotifications(req: Request, res: Response): Promise<void> {

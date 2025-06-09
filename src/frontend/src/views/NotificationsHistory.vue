@@ -1,11 +1,10 @@
 <template>
   <div class="notifications-history">
+    <button class="back-button" @click="goBack">
+      <span>← Back</span>
+    </button>
     <h1>Notifications History</h1>
-    <TradeListNotifications 
-      :notifications="notifications"
-      :loading="loading"
-      :error="error"
-    />
+    <TradeListNotifications :trades="notifications" />
   </div>
 </template>
 
@@ -13,7 +12,8 @@
 import { defineComponent, ref, onMounted } from 'vue'
 import TradeListNotifications from '../components/TradeListNotifications.vue'
 import axios from 'axios'
-import { TradeNotification } from '../../utils/types'
+import { TradeNotification } from '../../../utils/types'
+import { useRouter } from 'vue-router'
 
 export default defineComponent({
   name: 'NotificationsHistory',
@@ -21,6 +21,7 @@ export default defineComponent({
     TradeListNotifications
   },
   setup() {
+    const router = useRouter()
     const notifications = ref<TradeNotification[]>([])
     const loading = ref(true)
     const error = ref<string | null>(null)
@@ -38,6 +39,10 @@ export default defineComponent({
       }
     }
 
+    const goBack = () => {
+      router.back()
+    }
+
     onMounted(() => {
       fetchNotifications()
     })
@@ -45,7 +50,8 @@ export default defineComponent({
     return {
       notifications,
       loading,
-      error
+      error,
+      goBack
     }
   }
 })
@@ -54,6 +60,23 @@ export default defineComponent({
 <style scoped>
 .notifications-history {
   padding: 20px;
+}
+
+.back-button {
+  background: none;
+  border: none;
+  color: #2c3e50;
+  font-size: 16px;
+  cursor: pointer;
+  padding: 8px 0;
+  margin-bottom: 16px;
+  display: inline-flex;
+  align-items: center;
+  transition: color 0.2s;
+}
+
+.back-button:hover {
+  color: #42b983;
 }
 
 h1 {

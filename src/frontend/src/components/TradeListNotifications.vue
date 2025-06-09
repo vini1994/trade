@@ -43,6 +43,9 @@
                 <span class="badge" :class="trade.volume_adds_margin ? 'bg-success' : 'bg-secondary'">
                   {{ trade.volume_adds_margin ? 'Adds Margin' : 'No Extra Margin' }}
                 </span>
+                <span class="badge" :class="trade.manually_generated ? 'bg-info' : 'bg-secondary'">
+                  {{ trade.manually_generated ? 'Manual' : 'Auto' }}
+                </span>
                 <small class="text-muted">{{ trade.validation.message }}</small>
               </div>
               <div class="mt-1">
@@ -185,13 +188,7 @@ const enterMarket = async (trade: TradeNotification) => {
 
 const enterMarketWithTP1 = async (trade: TradeNotification) => {
   try {
-    await axios.post('/api/trade/market/tp_adjusted', {
-      ...trade,
-      takeProfits: {
-        ...trade.takeProfits,
-        tp1: trade.entry * 1.01 // Adjusting TP1 to 1% above entry
-      }
-    });
+    await axios.post('/api/trade/market/tp_adjusted', trade);
   } catch (error) {
     console.error('Error entering market with modified TP1:', error);
     alert('Failed to enter market with modified TP1. Please try again.');
