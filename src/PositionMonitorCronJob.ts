@@ -10,12 +10,6 @@ export class PositionMonitorCronJob {
     constructor() {
         // Create PositionMonitor with a callback to log price updates
         this.positionMonitor = new PositionMonitor((position) => {
-            if (position.lastPrice) {
-                console.log(`[${new Date().toLocaleString()}] ${position.symbol} ${position.positionSide} - Price: ${position.lastPrice}`);
-                if (position.stopLossOrder) {
-                    console.log(`Stop Loss: ${position.stopLossOrder.stopPrice}`);
-                }
-            }
         });
         this.tradeOrderProcessor = new TradeOrderProcessor();
     }

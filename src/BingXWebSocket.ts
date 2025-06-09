@@ -171,8 +171,6 @@ export class BingXWebSocket {
                     timestamp: Date.now(),
                 };
 
-                // Log price update
-                console.log(`Latest price for ${this.symbol}: ${priceData.price}`);
 
                 // Call the callback if provided
                 if (this.onPriceUpdate) {

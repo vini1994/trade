@@ -5,6 +5,7 @@ import { TradeDatabase } from './TradeDatabase';
 import { normalizeSymbolBingX, getPairPrice } from './utils/bingxUtils';
 import { Trade, BingXOrderResponse, TradeRecord, TradeExecutionResult } from './utils/types';
 import * as dotenv from 'dotenv';
+import { textChangeRangeIsUnchanged } from 'typescript';
 
 // Load environment variables
 dotenv.config();
@@ -66,7 +67,8 @@ export class BingXOrderExecutor {
         price: number,
         stopPrice: number,
         quantity: number,
-        tradeId?: number
+        tradeId?: number,
+        reduceOnly?: boolean
     ): Promise<BingXOrderResponse> {
         const normalizedPair = normalizeSymbolBingX(pair);
         const path = '/openApi/swap/v2/trade/order';
@@ -79,6 +81,10 @@ export class BingXOrderExecutor {
             stopPrice: stopPrice.toString(),
             quantity: quantity.toString()
         };
+
+        if (reduceOnly) {
+            params.reduceOnly = reduceOnly;
+        }
 
         // Add activationPrice for TRIGGER_LIMIT orders
         if (type === 'TRIGGER_LIMIT') {
@@ -298,10 +304,25 @@ export class BingXOrderExecutor {
                 throw new Error(`Cannot execute trade: ${message}`);
             }
 
+            const normalizedPair = normalizeSymbolBingX(trade.symbol);
+
+            // Get current price
+            const currentPrice = await getPairPrice(normalizedPair, this.apiClient);
+
+            // If modify_tp1 is true, adjust tp1 to create 1:1 risk-reward ratio
+            if (trade.modify_tp1) {
+                if (trade.type === 'LONG') {
+                    trade.tp1 = currentPrice + (currentPrice - trade.stop);
+                } else {
+                    trade.tp1 = currentPrice - (trade.stop - currentPrice);
+                }
+                console.log(`Modified tp1 to ${trade.tp1} for 1:1 risk-reward ratio`);
+            }
+
             // Calculate and set optimal leverage
             const leverageInfo = await this.leverageCalculator.calculateOptimalLeverage(
                 trade.symbol,
-                trade.entry,
+                currentPrice,
                 trade.stop,
                 trade.type
             );

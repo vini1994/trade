@@ -17,10 +17,14 @@ interface BingXPairInfo {
 export class LeverageCalculator {
     private readonly apiClient: BingXApiClient;
     private readonly maxLeverage: number;
+    private readonly safetyFactor: number;
 
     constructor() {
         this.apiClient = new BingXApiClient();
         this.maxLeverage = Number(process.env.MAX_LEVERAGE) || 20; // Default to 20x max leverage
+        // Convert percentage from .env to decimal (e.g., 50% -> 0.5)
+        const safetyFactorPercent = Number(process.env.LEVERAGE_SAFETY_FACTOR_PERCENT) || 50; // Default to 50% if not specified in .env
+        this.safetyFactor = safetyFactorPercent / 100;
     }
 
     private async getPairInfo(pair: string): Promise<BingXPairInfo> {
@@ -51,25 +55,18 @@ export class LeverageCalculator {
             const pairInfo = await this.getPairInfo(pair);
             const exchangeMaxLeverage = Math.floor(side === 'LONG' ? pairInfo.data.maxLongLeverage : pairInfo.data.maxShortLeverage);
             
-            console.log(`entry:${entry}`)
-            console.log(`stop:${stop}`)
-            console.log(`side:${side}`)
-            
             // Calculate stop loss percentage
             const stopLossPercentage = side === 'LONG' 
                 ? ((entry - stop) / entry)  
                 : ((stop - entry) / entry);
 
-            console.log(`stopLossPercentage:${stopLossPercentage}`)
-
             // Calculate theoretical max leverage based on risk
             const theoreticalMaxLeverage = 1/(stopLossPercentage);
 
-            console.log(`theoreticalMaxLeverage:${theoreticalMaxLeverage}`)
-
-            const theoreticalRealMaxLeverage = theoreticalMaxLeverage - (theoreticalMaxLeverage*0.4);
-
-            console.log(`theoreticalRealMaxLeverage:${theoreticalRealMaxLeverage}`)
+            // Apply safety factor to theoretical max leverage to account for market volatility
+            // and provide a buffer against liquidation. This makes the leverage more conservative
+            // and reduces the risk of getting liquidated during market swings.
+            const theoreticalRealMaxLeverage = theoreticalMaxLeverage * this.safetyFactor;
 
             // Use the minimum between theoretical max leverage, exchange max leverage, and configured max leverage
             const optimalLeverage = Math.min(

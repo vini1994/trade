@@ -68,7 +68,7 @@ export class TradeExecutor {
                     };
                 }
             }
-
+            console.log(takeProfits)
             // Check if all take profits are below entry
             if (takeProfits.some(tp => tp >= trade.entry)) {
                 return {

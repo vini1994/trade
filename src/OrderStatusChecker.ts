@@ -38,7 +38,7 @@ export class OrderStatusChecker {
         const path = '/openApi/swap/v2/trade/order';
         const _orderId = BigInt(orderId)
         const params = {
-            orderId: orderId
+            orderId: _orderId
         };
 
         try {

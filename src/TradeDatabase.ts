@@ -233,16 +233,22 @@ export class TradeDatabase {
         const values = [];
 
         if ('entryOrderId' in orderIds) {
-            updates.push('entryOrderId = ?');
-            values.push(orderIds.entryOrderId);
+            if (orderIds.entryOrderId) {
+                updates.push('entryOrderId = ?');
+                values.push(BigInt(orderIds.entryOrderId).toString);
+            }
         }
         if ('stopOrderId' in orderIds) {
-            updates.push('stopOrderId = ?');
-            values.push(orderIds.stopOrderId);
+            if (orderIds.stopOrderId) {
+                updates.push('stopOrderId = ?');
+                values.push(BigInt(orderIds.stopOrderId).toString);
+            }
         }
         if ('tp1OrderId' in orderIds) {
-            updates.push('tp1OrderId = ?');
-            values.push(orderIds.tp1OrderId);
+            if (orderIds.tp1OrderId) {
+                updates.push('tp1OrderId = ?');
+                values.push(BigInt(orderIds.tp1OrderId).toString);
+            }
         }
         if ('tp2OrderId' in orderIds) {
             updates.push('tp2OrderId = ?');
@@ -265,8 +271,11 @@ export class TradeDatabase {
             values.push(orderIds.tp6OrderId);
         }
         if ('trailingStopOrderId' in orderIds) {
-            updates.push('trailingStopOrderId = ?');
-            values.push(orderIds.trailingStopOrderId);
+            if (orderIds.trailingStopOrderId) {
+                updates.push('trailingStopOrderId = ?');
+                values.push(BigInt(orderIds.trailingStopOrderId).toString);
+            }
+
         }
 
         if (updates.length > 0) {
