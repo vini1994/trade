@@ -245,6 +245,9 @@ export class PositionMonitor {
                     await this.updateMonitoredPosition(position);
                 }
             }
+
+            await this.orderMonitor.cancelOrphanedOrders(this.monitoredPositions);
+
         } catch (error) {
             console.error('Error updating positions:', error);
             throw error;

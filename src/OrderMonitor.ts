@@ -1,5 +1,7 @@
 import { BingXApiClient } from './services/BingXApiClient';
 import * as dotenv from 'dotenv';
+import { BingXOrderExecutor } from './BingXOrderExecutor';
+import { MonitoredPosition } from './utils/types';
 
 // Load environment variables
 dotenv.config();
@@ -32,9 +34,11 @@ interface BingXOrderResponse {
 export class OrderMonitor {
     private readonly apiClient: BingXApiClient;
     private openOrders: Map<string, Order> = new Map();
+    private readonly orderExecutor: BingXOrderExecutor;
 
     constructor() {
         this.apiClient = new BingXApiClient();
+        this.orderExecutor = new BingXOrderExecutor();
     }
 
     private getOrderKey(order: Order): string {
@@ -107,5 +111,37 @@ export class OrderMonitor {
             }
         }
         return undefined;
+    }
+
+    private async cancelOrder(order: Order): Promise<void> {
+        try {
+            await this.orderExecutor.cancelOrder(order.symbol, order.orderId);
+            console.log(`Cancelled order ${order.orderId} for ${order.symbol} ${order.positionSide}`);
+        } catch (error) {
+            console.error(`Error cancelling order ${order.orderId}:`, error);
+            throw error;
+        }
+    }
+
+    public async cancelOrphanedOrders(monitoredPositions: Map<string, MonitoredPosition>): Promise<void> {
+        try {
+            // Update open orders first to get latest state
+            await this.updateOpenOrders();
+
+            // For each open order, check if there's a corresponding monitored position
+            for (const order of this.openOrders.values()) {
+                const positionKey = `${order.symbol}_${order.positionSide}`;
+                const hasPosition = monitoredPositions.has(positionKey);
+
+                // If no position exists for this order, cancel it
+                if (!hasPosition) {
+                    console.log(`Found orphaned order for ${order.symbol} ${order.positionSide} (${order.type})`);
+                    await this.cancelOrder(order);
+                }
+            }
+        } catch (error) {
+            console.error('Error cancelling orphaned orders:', error);
+            throw error;
+        }
     }
 } 
