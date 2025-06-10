@@ -72,6 +72,7 @@ export class BingXOrderExecutor {
     ): Promise<BingXOrderResponse> {
         const normalizedPair = normalizeSymbolBingX(pair);
         const path = '/openApi/swap/v2/trade/order';
+        const timestamp = Date.now().toString();
         const params: any = {
             symbol: normalizedPair,
             side: side,
@@ -79,7 +80,8 @@ export class BingXOrderExecutor {
             type: type,
             price: price.toString(),
             stopPrice: stopPrice.toString(),
-            quantity: quantity.toString()
+            quantity: quantity.toString(),
+            clientOrderId: `NBMEMBERS_${tradeId}_${timestamp}`,
         };
 
         if (reduceOnly) {
@@ -127,6 +129,7 @@ export class BingXOrderExecutor {
     ): Promise<BingXOrderResponse> {
         const normalizedPair = normalizeSymbolBingX(pair);
         const path = '/openApi/swap/v2/trade/order';
+        const timestamp = Date.now().toString();
         const params: any = {
             symbol: normalizedPair,
             side: side,
@@ -134,7 +137,8 @@ export class BingXOrderExecutor {
             type: 'TRAILING_STOP_MARKET',
             quantity: quantity.toString(),
             price: price.toString(),
-            activationPrice: activationPrice.toString()
+            activationPrice: activationPrice.toString(),
+            clientOrderId: `NBMEMBERS_${tradeId}_${timestamp}`,
         };
 
         try {
