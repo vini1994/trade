@@ -22,12 +22,24 @@
           <div class="mb-3">
             <label class="form-label">Type</label>
             <select
-              v-model="tradeData.side"
+              v-model="tradeData.type"
               class="form-select"
               required
             >
               <option value="LONG">LONG</option>
               <option value="SHORT">SHORT</option>
+            </select>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Interval</label>
+            <select
+              v-model="tradeData.interval"
+              class="form-select"
+              required
+            >
+              <option value="5m">5m</option>
+              <option value="15m">15m</option>
+              <option value="1h">1h</option>
             </select>
           </div>
           <div class="mb-3">
@@ -171,23 +183,9 @@
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { Trade } from '../../../utils/types';
 
-interface Trade {
-  entry: number;
-  stop: number;
-  side: 'LONG' | 'SHORT';
-  tp1: number | null;
-  tp2: number | null;
-  tp3: number | null;
-  tp4: number | null;
-  tp5: number | null;
-  tp6: number | null;
-  pair: string;
-  volume_required: boolean;
-  volume_adds_margin: boolean;
-  setup_description: string | null;
-  url_analysis: string;
-}
+
 
 const route = useRoute()
 const router = useRouter()
@@ -195,24 +193,25 @@ const router = useRouter()
 const tradeData = ref<Trade>({
   entry: 0,
   stop: 0,
-  side: 'LONG',
-  tp1: null,
+  type: 'LONG',
+  tp1: 0,
   tp2: null,
   tp3: null,
   tp4: null,
   tp5: null,
   tp6: null,
-  pair: '',
+  symbol: '',
   volume_required: false,
   volume_adds_margin: false,
   setup_description: null,
-  url_analysis: ''
+  url_analysis: '',
+  interval: '1h'
 })
 
 const pairUpperCase = computed({
-  get: () => tradeData.value.pair,
+  get: () => tradeData.value.symbol,
   set: (value: string) => {
-    tradeData.value.pair = value.toUpperCase()
+    tradeData.value.symbol = value.toUpperCase()
   }
 })
 

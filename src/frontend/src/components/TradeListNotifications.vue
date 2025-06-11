@@ -17,6 +17,7 @@
               </span>
               <span>Entry: {{ trade.entry }}</span>
               <span>Stop: {{ trade.stop }}</span>
+              <span>Interval: {{ trade.interval }}</span>
             </div>
             <div class="mt-2">
               <strong>Take Profits:</strong>
