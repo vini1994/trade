@@ -1,12 +1,59 @@
 <template>
     <main class="container py-4">
-      <div class="mb-4">
-        <router-link
-          to="/trade/new"
-          class="btn btn-primary"
-        >
-          Add New Trade
-        </router-link>
+      <div class="mb-4 d-flex justify-content-between align-items-center">
+        <div class="d-flex gap-2">
+          <router-link
+            to="/trade/new"
+            class="btn btn-primary"
+          >
+            Add New Trade
+          </router-link>
+          <button 
+            @click="showStats = !showStats" 
+            class="btn btn-outline-secondary"
+            :title="showStats ? 'Hide Statistics' : 'Show Statistics'"
+          >
+            <i class="bi" :class="showStats ? 'bi-chevron-up' : 'bi-chevron-down'"></i>
+            Statistics
+          </button>
+        </div>
+        <div class="d-flex gap-2">
+          <span class="badge bg-secondary">{{ trades.length }} {{ trades.length === 1 ? 'Trade' : 'Trades' }}</span>
+          <span class="badge bg-info">{{ uniquePairs.length }} {{ uniquePairs.length === 1 ? 'Pair' : 'Pairs' }}</span>
+          <span class="badge bg-success">{{ longCount }} LONG</span>
+          <span class="badge bg-danger">{{ shortCount }} SHORT</span>
+        </div>
+      </div>
+  
+      <div v-if="showStats" class="card shadow-sm mb-4">
+        <div class="card-body">
+          <h6 class="card-title mb-3">Trade Statistics</h6>
+          <div class="row g-3">
+            <!-- Totals -->
+            <div class="col-12">
+              <div class="d-flex gap-2 align-items-center">
+                <span class="text-muted">Total:</span>
+                <span class="badge bg-secondary">{{ trades.length }} Trades</span>
+                <span class="badge bg-info">{{ uniquePairs.length }} Pairs</span>
+                <span class="badge bg-success">{{ longCount }} LONG</span>
+                <span class="badge bg-danger">{{ shortCount }} SHORT</span>
+              </div>
+            </div>
+            
+            <!-- By Interval -->
+            <div class="col-12">
+              <div class="d-flex flex-column gap-2">
+                <div v-for="interval in ['5m', '15m', '1h']" :key="interval" class="d-flex gap-2 align-items-center">
+                  <span class="text-muted" style="min-width: 40px;">{{ interval }}:</span>
+                  <span class="badge bg-secondary">{{ getIntervalStats(interval).total }} Trades</span>
+                  <span class="badge bg-info">{{ getIntervalStats(interval).pairs }} Pairs</span>
+                  <span class="badge bg-success">{{ getIntervalStats(interval).long }} LONG</span>
+                  <span class="badge bg-danger">{{ getIntervalStats(interval).short }} SHORT</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
   
       <div class="card shadow-sm">
@@ -113,6 +160,19 @@
   
   const trades = ref<Trade[]>([])
   
+  const uniquePairs = computed(() => {
+    const pairs = new Set(trades.value.map(trade => trade.symbol))
+    return Array.from(pairs)
+  })
+  
+  const longCount = computed(() => {
+    return trades.value.filter(trade => trade.type === 'LONG').length
+  })
+  
+  const shortCount = computed(() => {
+    return trades.value.filter(trade => trade.type === 'SHORT').length
+  })
+  
   // Helper function to get formatted TPs for a trade
   const getFormattedTPs = (trade: Trade) => {
     const tps = []
@@ -146,6 +206,20 @@
       console.error('Failed to delete trade:', error)
     }
   }
+  
+  const getIntervalStats = (interval: string) => {
+    const intervalTrades = trades.value.filter(trade => trade.interval === interval)
+    const pairs = new Set(intervalTrades.map(trade => trade.symbol))
+    
+    return {
+      total: intervalTrades.length,
+      pairs: pairs.size,
+      long: intervalTrades.filter(trade => trade.type === 'LONG').length,
+      short: intervalTrades.filter(trade => trade.type === 'SHORT').length
+    }
+  }
+  
+  const showStats = ref(false)
   
   // Initialize
   onMounted(() => {
