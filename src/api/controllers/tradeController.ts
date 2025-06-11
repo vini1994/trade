@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
-import { TradeService, Trade } from '../services/tradeService';
+import { TradeService } from '../services/tradeService';
+import { Trade } from '../../utils/types';
 
 export class TradeController {
     private tradeService: TradeService;
@@ -22,13 +23,13 @@ export class TradeController {
             const newTrade = req.body as Trade;
             
             // Validate required fields
-            if (!newTrade.entry || !newTrade.stop || !newTrade.side || !newTrade.tp1 || !newTrade.pair || !newTrade.setup_description) {
+            if (!newTrade.entry || !newTrade.stop || !newTrade.type || !newTrade.tp1 || !newTrade.symbol || !newTrade.setup_description) {
                 const missingFields = [];
                 if (!newTrade.entry) missingFields.push('entry');
                 if (!newTrade.stop) missingFields.push('stop');
-                if (!newTrade.side) missingFields.push('side');
+                if (!newTrade.type) missingFields.push('type');
                 if (!newTrade.tp1) missingFields.push('tp1');
-                if (!newTrade.pair) missingFields.push('pair');
+                if (!newTrade.symbol) missingFields.push('symbol');
                 if (!newTrade.setup_description) missingFields.push('setup_description');
                 
                 res.status(400).json({ error: `Missing required fields: ${missingFields.join(', ')}` });

@@ -1,25 +1,10 @@
 import fs from 'fs/promises';
 import path from 'path';
+import { Trade } from '../../utils/types';
+
 
 const TRADES_FILE = path.join(__dirname, '../../../data/trades.json');
 
-export interface Trade {
-    entry: number;
-    stop: number;
-    side: 'LONG' | 'SHORT';
-    tp1: number;
-    tp2: number | null;
-    tp3: number | null;
-    tp4: number | null;
-    tp5: number | null;
-    tp6: number | null;
-    pair: string;
-    no_volume_invalidates_trade: boolean;
-    volume_adds_margin: boolean;
-    setup_description: string;
-    url_analysis: string;
-    volume_required: boolean;
-}
 
 export class TradeService {
     async readTrades(): Promise<Trade[]> {
