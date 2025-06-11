@@ -91,6 +91,7 @@ export class TradeOrderProcessor {
     private async cancelAndCloseTrade(trade: TradeRecord): Promise<void> {
         try {
             // Collect all active order IDs that need to be cancelled
+            /*
             const orderIds = [
                 trade.entryOrderId,
                 trade.stopOrderId,
@@ -113,7 +114,7 @@ export class TradeOrderProcessor {
                     await this.orderExecutor.cancelOrder(trade.symbol, orderId);
                 }
             }
-
+            */
             // Mark trade as closed
             await this.tradeDatabase.updateTradeStatus(trade.id, 'CLOSED');
             console.log(`Trade ${trade.id} marked as CLOSED due to no monitored position`);
