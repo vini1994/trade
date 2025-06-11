@@ -1,7 +1,6 @@
 import { DataServiceManager } from './DataServiceManager';
-import { KlineData } from './utils/types';
+import { KlineData, Trade, TradeType, AllowedInterval } from './utils/types';
 
-export type TradeType = 'LONG' | 'SHORT';
 
 export class TradeEntryAnalyzer {
     private readonly dataServiceManager: DataServiceManager;
@@ -65,12 +64,7 @@ export class TradeEntryAnalyzer {
         }
     }
 
-    public async analyzeEntry(
-        symbol: string, 
-        type: TradeType, 
-        entry: number, 
-        stop: number,
-        tp1: number
+    public async analyzeEntry(trade: Trade
     ): Promise<{
         canEnter: boolean;
         currentClose: number;
@@ -80,22 +74,22 @@ export class TradeEntryAnalyzer {
     }> {
         try {
             // Calculate risk-reward ratio
-            const entryToStopDistance = Math.abs(entry - stop);
-            const entryToTP1Distance = Math.abs(entry - tp1);
+            const entryToStopDistance = Math.abs(trade.entry - trade.stop);
+            const entryToTP1Distance = Math.abs(trade.entry - trade.tp1);
             const riskRewardRatio = entryToTP1Distance / entryToStopDistance;
 
             // Get data from either Binance or BingX using DataServiceManager
-            const { data: klineData, source } = await this.dataServiceManager.getKlineData(symbol);
+            const { data: klineData, source } = await this.dataServiceManager.getKlineData(trade.symbol, trade.interval);
             
             // Get the most recent close price
             const currentCandle = klineData[0];
             const currentClose = parseFloat(currentCandle.close);
             
             // Check if entry condition is met first
-            const entryConditionMet = this.isEntryConditionMet(currentCandle, entry, type);
+            const entryConditionMet = this.isEntryConditionMet(currentCandle, trade.entry, trade.type);
             let hasClosePriceBeforeEntry = false;
             if (entryConditionMet) {
-                hasClosePriceBeforeEntry = this.hasClosePriceBeforeEntry(klineData, entry, type);
+                hasClosePriceBeforeEntry = this.hasClosePriceBeforeEntry(klineData, trade.entry, trade.type);
             }
             if (entryConditionMet && hasClosePriceBeforeEntry){
                 // Validate risk-reward ratio
@@ -110,13 +104,13 @@ export class TradeEntryAnalyzer {
                 }
                 
                 // Check if wick ratio is valid
-                if (!this.isWickRatioValid(currentCandle, type)) {
+                if (!this.isWickRatioValid(currentCandle, trade.type)) {
                     return {
                         canEnter: false,
                         currentClose,
                         hasClosePriceBeforeEntry,
                         warning: entryConditionMet && hasClosePriceBeforeEntry,
-                        message: `Invalid candle wick ratio. ${type === 'LONG' ? 'Upper' : 'Lower'} wick is more than 80% of total candle height [${source}]`
+                        message: `Invalid candle wick ratio. ${trade.type === 'LONG' ? 'Upper' : 'Lower'} wick is more than 80% of total candle height [${source}]`
                     };
                 }
 
@@ -128,11 +122,11 @@ export class TradeEntryAnalyzer {
             // Generate appropriate message
             let message = '';
             if (!entryConditionMet) {
-                message = `Entry condition not met. Current close (${currentClose}) is not ${type === 'LONG' ? 'above' : 'below'} entry (${entry}) [${source}]`;
+                message = `Entry condition not met. Current close (${currentClose}) is not ${trade.type === 'LONG' ? 'above' : 'below'} entry (${trade.entry}) [${source}]`;
             } else if (!hasClosePriceBeforeEntry) {
-                message = `Entry condition met but no price has been close before entry (${entry}) [${source}]`;
+                message = `Entry condition met but no price has been close before entry (${trade.entry}) [${source}]`;
             } else {
-                message = `Entry condition met and price has been close before entry (${entry}) [${source}]`;
+                message = `Entry condition met and price has been close before entry (${trade.entry}) [${source}]`;
             }
 
             return {
@@ -143,20 +137,20 @@ export class TradeEntryAnalyzer {
                 message
             };
         } catch (error: any) {
-            console.error(`Error analyzing entry for ${symbol}:`, error);
-            throw new Error(`Failed to analyze entry for ${symbol}: ${error.message}`);
+            console.error(`Error analyzing entry for ${trade.symbol}:`, error);
+            throw new Error(`Failed to analyze entry for ${trade.symbol}: ${error.message}`);
         }
     }
 
-    public async getRecentCloses(symbol: string, count: number): Promise<number[]> {
+    public async getRecentCloses(trade: Trade, count: number): Promise<number[]> {
         try {
-            const { data: klineData } = await this.dataServiceManager.getKlineData(symbol);
+            const { data: klineData } = await this.dataServiceManager.getKlineData(trade.symbol, trade.interval);
             return klineData
                 .slice(0, count)
                 .map(kline => parseFloat(kline.close));
         } catch (error: any) {
-            console.error(`Error getting recent closes for ${symbol}:`, error);
-            throw new Error(`Failed to get recent closes for ${symbol}: ${error.message}`);
+            console.error(`Error getting recent closes for ${trade.symbol}:`, error);
+            throw new Error(`Failed to get recent closes for ${trade.symbol}: ${error.message}`);
         }
     }
 } 

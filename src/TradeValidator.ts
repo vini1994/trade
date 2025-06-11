@@ -1,18 +1,7 @@
 import { TradeEntryAnalyzer } from './TradeEntryAnalyzer';
 import { VolumeAnalyzer, VolumeColor } from './VolumeAnalyzer';
-import { KlineData } from './utils/types';
+import { KlineData, Trade, AllowedInterval } from './utils/types';
 
-interface Trade {
-    symbol: string;
-    type: 'LONG' | 'SHORT';
-    entry: number;
-    stop: number;
-    volume: boolean;
-    tp1: number;
-    volume_required: boolean;
-    volume_adds_margin: boolean;
-    setup_description: string | null;
-}
 
 export class TradeValidator {
     private readonly tradeEntryAnalyzer: TradeEntryAnalyzer;
@@ -53,17 +42,13 @@ export class TradeValidator {
             // Run both analyses in parallel
             const [entryAnalysis, volumeAnalysis] = await Promise.all([
                 this.tradeEntryAnalyzer.analyzeEntry(
-                    trade.symbol,
-                    trade.type,
-                    trade.entry,
-                    trade.stop,
-                    trade.tp1
+                    trade
                 ),
                 this.volumeAnalyzer.analyzeVolume(trade.symbol)
             ]);
 
             // Get recent closes from entry analysis
-            const recentCloses = await this.tradeEntryAnalyzer.getRecentCloses(trade.symbol, 3);
+            const recentCloses = await this.tradeEntryAnalyzer.getRecentCloses(trade, 3);
 
             // Check if both conditions are met
             const isEntryValid = entryAnalysis.canEnter;

@@ -26,6 +26,7 @@ export class TradeDatabase {
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 symbol TEXT NOT NULL,
                 type TEXT NOT NULL,
+                interval TEXT NOT NULL,
                 entry REAL NOT NULL,
                 stop REAL NOT NULL,
                 tp1 REAL,
@@ -99,6 +100,7 @@ export class TradeDatabase {
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 symbol TEXT NOT NULL,
                 type TEXT NOT NULL,
+                interval TEXT NOT NULL,
                 entry REAL NOT NULL,
                 stop REAL NOT NULL,
                 tp1 REAL,
@@ -136,6 +138,7 @@ export class TradeDatabase {
             INSERT INTO trades (
                 symbol,
                 type,
+                interval,
                 entry,
                 stop,
                 tp1,
@@ -161,10 +164,11 @@ export class TradeDatabase {
                 volume_required,
                 createdAt,
                 updatedAt
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `, [
             trade.symbol,
             trade.type,
+            trade.interval,
             trade.entry,
             trade.stop,
             trade.tp1,
@@ -409,6 +413,7 @@ export class TradeDatabase {
             INSERT INTO trade_notifications (
                 symbol,
                 type,
+                interval,
                 entry,
                 stop,
                 tp1,
@@ -426,10 +431,11 @@ export class TradeDatabase {
                 notification_data,
                 timestamp,
                 createdAt
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `, [
             notification.symbol,
             notification.type,
+            notification.interval,
             notification.entry,
             notification.stop,
             notification.takeProfits.tp1,
