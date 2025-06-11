@@ -1,7 +1,7 @@
 import { BinanceDataService } from './BinanceDataService';
 import { BingXDataService } from './BingXDataService';
 import { BinanceFuturesDataService } from './BinanceFuturesDataService';
-import { KlineData } from './utils/types';
+import { KlineData, AllowedInterval } from './utils/types';
 
 export class DataServiceManager {
     private binanceFuturesService: BinanceFuturesDataService;
@@ -14,11 +14,11 @@ export class DataServiceManager {
         this.binanceService = new BinanceDataService();
     }
 
-    public async getKlineData(symbol: string): Promise<{ data: KlineData[]; source: 'binance_futures' | 'bingx' | 'binance' }> {
+    public async getKlineData(symbol: string, interval: AllowedInterval = '1h'): Promise<{ data: KlineData[]; source: 'binance_futures' | 'bingx' | 'binance' }> {
         // Try Binance Futures first
         try {
-            console.log(`Attempting to fetch data from Binance Futures for ${symbol}...`);
-            const futuresData = await this.binanceFuturesService.getKlineData(symbol);
+            console.log(`Attempting to fetch data from Binance Futures for ${symbol} with interval ${interval}...`);
+            const futuresData = await this.binanceFuturesService.getKlineData(symbol, interval);
             const sortedData = [...futuresData].sort((a, b) => b.closeTime - a.closeTime);
             const dataToCheck = [...sortedData].slice(1)
             console.log('Successfully fetched data from Binance Futures');
@@ -28,8 +28,8 @@ export class DataServiceManager {
             
             // Try BingX next
             try {
-                console.log(`Attempting to fetch data from BingX for ${symbol}...`);
-                const bingxData = await this.bingxService.getKlineData(symbol);
+                console.log(`Attempting to fetch data from BingX for ${symbol} with interval ${interval}...`);
+                const bingxData = await this.bingxService.getKlineData(symbol, interval);
                 const sortedData = [...bingxData].sort((a, b) => b.closeTime - a.closeTime);
                 const dataToCheck = [...sortedData].slice(1)
         
@@ -40,8 +40,8 @@ export class DataServiceManager {
                 
                 // Finally try Binance Spot
                 try {
-                    console.log(`Attempting to fetch data from Binance Spot for ${symbol}...`);
-                    const binanceData = await this.binanceService.getKlineData(symbol);
+                    console.log(`Attempting to fetch data from Binance Spot for ${symbol} with interval ${interval}...`);
+                    const binanceData = await this.binanceService.getKlineData(symbol, interval);
                     const sortedData = [...binanceData].sort((a, b) => b.closeTime - a.closeTime);
                     const dataToCheck = [...sortedData].slice(1)
                     console.log('Successfully fetched data from Binance Spot');
@@ -57,12 +57,12 @@ export class DataServiceManager {
         }
     }
 
-    public async getKlineDataWithRetry(symbol: string, maxRetries: number = 3): Promise<{ data: KlineData[]; source: 'binance_futures' | 'bingx' | 'binance' }> {
+    public async getKlineDataWithRetry(symbol: string, interval: AllowedInterval = '1h', maxRetries: number = 3): Promise<{ data: KlineData[]; source: 'binance_futures' | 'bingx' | 'binance' }> {
         let lastError: Error | null = null;
         
         for (let attempt = 1; attempt <= maxRetries; attempt++) {
             try {
-                return await this.getKlineData(symbol);
+                return await this.getKlineData(symbol, interval);
             } catch (error: any) {
                 lastError = new Error(error.message);
                 console.log(`Attempt ${attempt}/${maxRetries} failed. Retrying...`);

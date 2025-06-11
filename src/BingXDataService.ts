@@ -4,7 +4,7 @@ import { open } from 'sqlite';
 import * as path from 'path';
 import crypto from 'crypto';
 import * as dotenv from 'dotenv';
-import { KlineData } from './utils/types';
+import { KlineData, AllowedInterval } from './utils/types';
 import { normalizeSymbolBingX } from './utils/bingxUtils';
 
 // Load environment variables
@@ -13,15 +13,18 @@ dotenv.config();
 
 interface CacheKey {
     symbol: string;
+    interval: AllowedInterval;
     hour: number;
     day: number;
     month: number;
     year: number;
+    minute: number; // For 5m and 15m intervals
 }
 
 export class BingXDataService {
     private readonly apiClient: BingXApiClient;
     private db: any;
+    private readonly validIntervals: AllowedInterval[] = ['5m', '15m', '1h'];
 
     constructor() {
         // Initialize without any config since we're using environment variables
@@ -39,32 +42,53 @@ export class BingXDataService {
         await this.db.exec(`
             CREATE TABLE IF NOT EXISTS kline_cache (
                 symbol TEXT,
+                interval TEXT,
                 hour INTEGER,
                 day INTEGER,
                 month INTEGER,
                 year INTEGER,
+                minute INTEGER,
                 data TEXT,
                 timestamp INTEGER,
-                PRIMARY KEY (symbol, hour, day, month, year)
+                PRIMARY KEY (symbol, interval, hour, day, month, year, minute)
             )
         `);
     }
 
-    private getCurrentTimeComponents(): CacheKey {
+    private validateInterval(interval: AllowedInterval): AllowedInterval {
+        if (!this.validIntervals.includes(interval as AllowedInterval)) {
+            throw new Error(`Invalid interval. Must be one of: ${this.validIntervals.join(', ')}`);
+        }
+        return interval as AllowedInterval;
+    }
+
+    private getCurrentTimeComponents(interval: AllowedInterval): CacheKey {
         const now = new Date();
+        const minute = now.getMinutes();
+        
+        // Calculate the appropriate minute block based on interval
+        let minuteBlock = 0;
+        if (interval === '5m') {
+            minuteBlock = Math.floor(minute / 5) * 5;
+        } else if (interval === '15m') {
+            minuteBlock = Math.floor(minute / 15) * 15;
+        }
+
         return {
             symbol: '', // This will be set when calling getCachedData
+            interval,
             hour: now.getHours(),
             day: now.getDate(),
             month: now.getMonth() + 1, // getMonth() returns 0-11
-            year: now.getFullYear()
+            year: now.getFullYear(),
+            minute: interval === '1h' ? 0 : minuteBlock
         };
     }
 
     private async getCachedData(symbol: string, timeComponents: CacheKey): Promise<KlineData[] | null> {
         const result = await this.db.get(
-            'SELECT data FROM kline_cache WHERE symbol = ? AND hour = ? AND day = ? AND month = ? AND year = ?',
-            [symbol, timeComponents.hour, timeComponents.day, timeComponents.month, timeComponents.year]
+            'SELECT data FROM kline_cache WHERE symbol = ? AND interval = ? AND hour = ? AND day = ? AND month = ? AND year = ? AND minute = ?',
+            [symbol, timeComponents.interval, timeComponents.hour, timeComponents.day, timeComponents.month, timeComponents.year, timeComponents.minute]
         );
 
         if (result) {
@@ -75,8 +99,8 @@ export class BingXDataService {
 
     private async cacheData(symbol: string, timeComponents: CacheKey, data: KlineData[]): Promise<void> {
         await this.db.run(
-            'INSERT OR REPLACE INTO kline_cache (symbol, hour, day, month, year, data, timestamp) VALUES (?, ?, ?, ?, ?, ?, ?)',
-            [symbol, timeComponents.hour, timeComponents.day, timeComponents.month, timeComponents.year, JSON.stringify(data), Date.now()]
+            'INSERT OR REPLACE INTO kline_cache (symbol, interval, hour, day, month, year, minute, data, timestamp) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+            [symbol, timeComponents.interval, timeComponents.hour, timeComponents.day, timeComponents.month, timeComponents.year, timeComponents.minute, JSON.stringify(data), Date.now()]
         );
     }
 
@@ -97,14 +121,15 @@ export class BingXDataService {
         };
     }
 
-    public async getKlineData(symbol: string): Promise<KlineData[]> {
+    public async getKlineData(symbol: string, interval: AllowedInterval = '1h'): Promise<KlineData[]> {
         const normalizedSymbol = normalizeSymbolBingX(symbol);
-        const timeComponents = this.getCurrentTimeComponents();
+        const validatedInterval = this.validateInterval(interval);
+        const timeComponents = this.getCurrentTimeComponents(validatedInterval);
         
         // Check cache first
         const cachedData = await this.getCachedData(normalizedSymbol, timeComponents);
         if (cachedData) {
-            console.log(`Returning cached data for ${normalizedSymbol} at ${timeComponents.hour}:00 on ${timeComponents.day}/${timeComponents.month}/${timeComponents.year}`);
+            console.log(`Returning cached data for ${normalizedSymbol} (${validatedInterval}) at ${timeComponents.hour}:${timeComponents.minute.toString().padStart(2, '0')} on ${timeComponents.day}/${timeComponents.month}/${timeComponents.year}`);
             return cachedData;
         }
 
@@ -112,8 +137,8 @@ export class BingXDataService {
             const path = '/openApi/swap/v3/quote/klines';
             const params = {
                 symbol: normalizedSymbol,
-                interval: '1h',
-                limit: 56,
+                interval: validatedInterval,
+                limit: validatedInterval === '1h' ? 56 : 100, // More data points for smaller intervals
                 timestamp: Date.now().toString()
             };
 
@@ -123,10 +148,10 @@ export class BingXDataService {
             // Cache the data
             await this.cacheData(normalizedSymbol, timeComponents, klineData);
             
-            console.log(`Fetched and cached new data for ${normalizedSymbol} at ${timeComponents.hour}:00 on ${timeComponents.day}/${timeComponents.month}/${timeComponents.year}`);
+            console.log(`Fetched and cached new data for ${normalizedSymbol} (${validatedInterval}) at ${timeComponents.hour}:${timeComponents.minute.toString().padStart(2, '0')} on ${timeComponents.day}/${timeComponents.month}/${timeComponents.year}`);
             return klineData;
         } catch (error) {
-            console.error(`Error fetching data for ${normalizedSymbol}:`, error);
+            console.error(`Error fetching data for ${normalizedSymbol} (${validatedInterval}):`, error);
             throw error;
         }
     }
