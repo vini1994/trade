@@ -15,12 +15,15 @@ export interface KlineData {
     takerBuyQuoteAssetVolume: string;
 }
 
+export type AllowedInterval = '5m' | '15m' | '1h' | null;
+export type TradeType = 'LONG' | 'SHORT';
+
 export interface Trade {
     symbol: string;
-    type: 'LONG' | 'SHORT';
+    type: TradeType;
     entry: number;
     stop: number;
-    tp1: number | null;
+    tp1: number;
     tp2: number | null;
     tp3: number | null;
     tp4: number | null;
@@ -30,6 +33,8 @@ export interface Trade {
     setup_description: string | null;
     volume_required: boolean;
     modify_tp1?: boolean | false;
+    interval?: AllowedInterval | null;
+    url_analysis?: string | null;
 }
 
 export interface BingXOrderResponse {
@@ -65,6 +70,7 @@ export interface TradeRecord extends Trade {
     quantity: number;
     leverage: number;
     status: 'OPEN' | 'CLOSED';
+    interval: AllowedInterval | null;
 }
 
 export interface TradeExecutionResult {
@@ -141,7 +147,7 @@ export interface TradeNotification {
     entry: number;
     stop: number;
     takeProfits: {
-        tp1: number | null;
+        tp1: number;
         tp2: number | null;
         tp3: number | null;
         tp4: number | null;
@@ -184,4 +190,5 @@ export interface TradeNotification {
     volume_adds_margin: boolean;
     setup_description: string | null;
     manually_generated?: boolean;
+    interval?: AllowedInterval | null;
 } 
