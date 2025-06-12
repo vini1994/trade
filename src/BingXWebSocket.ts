@@ -47,11 +47,19 @@ export class BingXWebSocket {
                     // Convert RawData to Buffer
                     const buffer = Buffer.from(data as Buffer);
                     let decodedMsg: string;
-                    let obj: any;
 
-                    // First try parsing as JSON directly
+                    // First try to decode as plain text
+                    decodedMsg = buffer.toString('utf-8');
+                    
+                    // Handle plain text messages first
+                    if (decodedMsg === "Ping" || decodedMsg === "Pong") {
+                        this.lastPongTime = Date.now();
+                        return;
+                    }
+
+                    // Try parsing as JSON
+                    let obj: any;
                     try {
-                        decodedMsg = buffer.toString('utf-8');
                         obj = JSON.parse(decodedMsg);
                     } catch (parseError) {
                         // If direct parsing fails, try decompressing
@@ -62,11 +70,6 @@ export class BingXWebSocket {
                             console.error('Failed to parse or decompress message:', decompressError);
                             return;
                         }
-                    }
-
-                    if (decodedMsg === "Pong") {
-                        this.lastPongTime = Date.now();
-                        return;
                     }
 
                     this.handleMessage(obj);
