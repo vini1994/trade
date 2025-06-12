@@ -1,5 +1,17 @@
 <template>
   <div>
+    <!-- Add Toast Container -->
+    <div class="toast-container position-fixed bottom-0 end-0 p-3">
+      <div id="successToast" class="toast" role="alert" aria-live="assertive" aria-atomic="true">
+        <div class="toast-header">
+          <strong class="me-auto">Success</strong>
+          <button type="button" class="btn-close" data-bs-dismiss="toast" aria-label="Close"></button>
+        </div>
+        <div class="toast-body">
+          Trade executed successfully!
+        </div>
+      </div>
+    </div>
     <div v-if="trades.length === 0" class="text-center text-muted">
       No trade notifications received yet
     </div>
@@ -137,14 +149,18 @@
                   <button 
                     @click="enterMarket(trade)" 
                     class="btn btn-sm btn-success"
+                    :disabled="trade.isLoading"
                   >
-                    Enter Market
+                    <span v-if="trade.isLoading" class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>
+                    {{ trade.isLoading ? 'Entering...' : 'Enter Market' }}
                   </button>
                   <button 
                     @click="enterMarketWithTP1(trade)" 
                     class="btn btn-sm btn-warning"
+                    :disabled="trade.isLoadingTP1"
                   >
-                    Enter Market (TP1 Adjusted)
+                    <span v-if="trade.isLoadingTP1" class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>
+                    {{ trade.isLoadingTP1 ? 'Entering...' : 'Enter Market (TP1 Adjusted)' }}
                   </button>
                 </template>
               </div>
@@ -157,13 +173,21 @@
 </template>
 
 <script setup lang="ts">
-import { defineProps } from 'vue'
+import { defineProps, ref } from 'vue'
 import { TradeNotification } from '../../../utils/types'
 import axios from 'axios'
+import { Toast } from 'bootstrap'
 
 const props = defineProps<{
   trades: TradeNotification[]
 }>()
+
+// Add loading states to trades
+const trades = ref(props.trades.map(trade => ({
+  ...trade,
+  isLoading: false,
+  isLoadingTP1: false
+})))
 
 const formatTimestamp = (timestamp: string) => {
   const date = new Date(timestamp);
@@ -178,23 +202,45 @@ const formatTimestamp = (timestamp: string) => {
   });
 };
 
-const enterMarket = async (trade: TradeNotification) => {
-  try {
-    await axios.post('/api/trade/market', trade);
-  } catch (error) {
-    console.error('Error entering market:', error);
-    alert('Failed to enter market. Please try again.');
+const showSuccessToast = () => {
+  const toastEl = document.getElementById('successToast')
+  if (toastEl) {
+    const toast = new Toast(toastEl)
+    toast.show()
   }
-};
+}
+
+const enterMarket = async (trade: TradeNotification) => {
+  const tradeIndex = trades.value.findIndex(t => t === trade)
+  if (tradeIndex === -1) return
+
+  trades.value[tradeIndex].isLoading = true
+  try {
+    await axios.post('/api/trade/market', trade)
+    showSuccessToast()
+  } catch (error) {
+    console.error('Error entering market:', error)
+    alert('Failed to enter market. Please try again.')
+  } finally {
+    trades.value[tradeIndex].isLoading = false
+  }
+}
 
 const enterMarketWithTP1 = async (trade: TradeNotification) => {
+  const tradeIndex = trades.value.findIndex(t => t === trade)
+  if (tradeIndex === -1) return
+
+  trades.value[tradeIndex].isLoadingTP1 = true
   try {
-    await axios.post('/api/trade/market/tp_adjusted', trade);
+    await axios.post('/api/trade/market/tp_adjusted', trade)
+    showSuccessToast()
   } catch (error) {
-    console.error('Error entering market with modified TP1:', error);
-    alert('Failed to enter market with modified TP1. Please try again.');
+    console.error('Error entering market with modified TP1:', error)
+    alert('Failed to enter market with modified TP1. Please try again.')
+  } finally {
+    trades.value[tradeIndex].isLoadingTP1 = false
   }
-};
+}
 </script>
 
 <style scoped>
@@ -289,5 +335,19 @@ const enterMarketWithTP1 = async (trade: TradeNotification) => {
 
 .gap-2 {
   gap: 0.5rem !important;
+}
+
+.toast-container {
+  z-index: 1050;
+}
+
+.toast {
+  background-color: var(--bs-body-bg);
+  border: 1px solid var(--bs-border-color);
+}
+
+[data-bs-theme="dark"] .toast {
+  background-color: #343a40;
+  border-color: #495057;
 }
 </style> 

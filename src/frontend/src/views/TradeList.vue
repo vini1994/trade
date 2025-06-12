@@ -1,5 +1,17 @@
 <template>
     <main class="container py-4">
+      <!-- Add Toast Container -->
+      <div class="toast-container position-fixed bottom-0 end-0 p-3">
+        <div id="successToast" class="toast" role="alert" aria-live="assertive" aria-atomic="true">
+          <div class="toast-header">
+            <strong class="me-auto">Success</strong>
+            <button type="button" class="btn-close" data-bs-dismiss="toast" aria-label="Close"></button>
+          </div>
+          <div class="toast-body">
+            Trade executed successfully!
+          </div>
+        </div>
+      </div>
       <div class="mb-4 d-flex justify-content-between align-items-center">
         <div class="d-flex gap-2">
           <router-link
@@ -15,6 +27,14 @@
           >
             <i class="bi" :class="showStats ? 'bi-chevron-up' : 'bi-chevron-down'"></i>
             Statistics
+          </button>
+          <button 
+            @click="showMarketButtons = !showMarketButtons" 
+            class="btn btn-outline-info"
+            :title="showMarketButtons ? 'Hide Market Buttons' : 'Show Market Buttons'"
+          >
+            <i class="bi" :class="showMarketButtons ? 'bi-eye-slash' : 'bi-eye'"></i>
+            {{ showMarketButtons ? 'Hide Market Buttons' : 'Show Market Buttons' }}
           </button>
         </div>
         <div class="d-flex gap-2">
@@ -130,18 +150,38 @@
                   <span v-else>-</span>
                 </td>
                 <td class="px-3 py-2">
-                  <router-link
-                    :to="`/trade/${index}/edit`"
-                    class="btn btn-sm btn-outline-primary me-2"
-                  >
-                    Edit
-                  </router-link>
-                  <button
-                    @click="deleteTrade(index)"
-                    class="btn btn-sm btn-outline-danger"
-                  >
-                    Delete
-                  </button>
+                  <div class="d-flex gap-2">
+                    <router-link
+                      :to="`/trade/${index}/edit`"
+                      class="btn btn-sm btn-outline-primary"
+                    >
+                      Edit
+                    </router-link>
+                    <button
+                      @click="deleteTrade(index)"
+                      class="btn btn-sm btn-outline-danger"
+                    >
+                      Delete
+                    </button>
+                    <template v-if="showMarketButtons">
+                      <button 
+                        @click="enterMarket(trade)" 
+                        class="btn btn-sm btn-success"
+                        :disabled="trade.isLoading"
+                      >
+                        <span v-if="trade.isLoading" class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>
+                        {{ trade.isLoading ? 'Entering...' : 'Enter' }}
+                      </button>
+                      <button 
+                        @click="enterMarketWithTP1(trade)" 
+                        class="btn btn-sm btn-warning"
+                        :disabled="trade.isLoadingTP1"
+                      >
+                        <span v-if="trade.isLoadingTP1" class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>
+                        {{ trade.isLoadingTP1 ? 'Entering...' : 'Enter TP1' }}
+                      </button>
+                    </template>
+                  </div>
                 </td>
               </tr>
             </tbody>
@@ -156,6 +196,8 @@
   import { ref, onMounted, computed } from 'vue'
   import TradeNotifications from '../components/TradeNotifications.vue'
   import { Trade } from '../../../utils/types';
+  import { Toast } from 'bootstrap'
+  import axios from 'axios'
   
   
   const trades = ref<Trade[]>([])
@@ -189,7 +231,12 @@
   const loadTrades = async () => {
     try {
       const response = await fetch('/api/trades')
-      trades.value = await response.json()
+      const loadedTrades = await response.json()
+      trades.value = loadedTrades.map((trade: Trade) => ({
+        ...trade,
+        isLoading: false,
+        isLoadingTP1: false
+      }))
     } catch (error) {
       console.error('Failed to load trades:', error)
     }
@@ -220,9 +267,95 @@
   }
   
   const showStats = ref(false)
+  const showMarketButtons = ref(false)
+  
+  const showSuccessToast = () => {
+    const toastEl = document.getElementById('successToast')
+    if (toastEl) {
+      const toast = new Toast(toastEl)
+      toast.show()
+    }
+  }
+  
+  const enterMarket = async (trade: Trade) => {
+    const tradeIndex = trades.value.findIndex(t => t === trade)
+    if (tradeIndex === -1) return
+
+    trades.value[tradeIndex].isLoading = true
+    try {
+      await axios.post('/api/trade/market', trade)
+      showSuccessToast()
+    } catch (error) {
+      console.error('Error entering market:', error)
+      alert('Failed to enter market. Please try again.')
+    } finally {
+      trades.value[tradeIndex].isLoading = false
+    }
+  }
+  
+  const enterMarketWithTP1 = async (trade: Trade) => {
+    const tradeIndex = trades.value.findIndex(t => t === trade)
+    if (tradeIndex === -1) return
+
+    trades.value[tradeIndex].isLoadingTP1 = true
+    try {
+      await axios.post('/api/trade/market/tp_adjusted', trade)
+      showSuccessToast()
+    } catch (error) {
+      console.error('Error entering market with modified TP1:', error)
+      alert('Failed to enter market with modified TP1. Please try again.')
+    } finally {
+      trades.value[tradeIndex].isLoadingTP1 = false
+    }
+  }
   
   // Initialize
   onMounted(() => {
     loadTrades()
   })
   </script>
+
+<style scoped>
+.toast-container {
+  z-index: 1050;
+}
+
+.toast {
+  background-color: var(--bs-body-bg);
+  border: 1px solid var(--bs-border-color);
+}
+
+[data-bs-theme="dark"] .toast {
+  background-color: #343a40;
+  border-color: #495057;
+}
+
+.btn-sm {
+  font-size: 0.875rem;
+  padding: 0.25rem 0.5rem;
+}
+
+.gap-2 {
+  gap: 0.5rem !important;
+}
+
+.btn-outline-info {
+  border-color: var(--bs-info);
+  color: var(--bs-info);
+}
+
+.btn-outline-info:hover {
+  background-color: var(--bs-info);
+  color: var(--bs-white);
+}
+
+[data-bs-theme="dark"] .btn-outline-info {
+  color: var(--bs-info);
+  border-color: var(--bs-info);
+}
+
+[data-bs-theme="dark"] .btn-outline-info:hover {
+  background-color: var(--bs-info);
+  color: var(--bs-dark);
+}
+</style>
