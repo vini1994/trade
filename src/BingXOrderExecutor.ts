@@ -355,6 +355,14 @@ export class BingXOrderExecutor {
             // Get current price
             const currentPrice = await getPairPrice(normalizedPair, this.apiClient);
 
+            // Validate stop price based on trade type and current price
+            if (trade.type === 'LONG' && trade.stop > currentPrice) {
+                throw new Error(`Invalid stop price for LONG position: stop (${trade.stop}) must be below current price (${currentPrice})`);
+            }
+            if (trade.type === 'SHORT' && trade.stop < currentPrice) {
+                throw new Error(`Invalid stop price for SHORT position: stop (${trade.stop}) must be above current price (${currentPrice})`);
+            }
+
             // If modify_tp1 is true, adjust tp1 to create 1:1 risk-reward ratio
             if (trade.modify_tp1) {
                 if (trade.type === 'LONG') {
