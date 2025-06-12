@@ -24,7 +24,7 @@ export class LeverageCalculator {
         this.maxLeverage = Number(process.env.MAX_LEVERAGE) || 200; // Default to 200x max leverage
         // Convert percentage from .env to decimal (e.g., 50% -> 0.5)
         const safetyFactorPercent = Number(process.env.LEVERAGE_SAFETY_FACTOR_PERCENT) || 50; // Default to 50% if not specified in .env
-        this.safetyFactor = safetyFactorPercent / 100;
+        this.safetyFactor = 1 - (safetyFactorPercent / 100);
     }
 
     private async getPairInfo(pair: string): Promise<BingXPairInfo> {
