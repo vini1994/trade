@@ -282,8 +282,48 @@
     if (tradeIndex === -1) return
 
     trades.value[tradeIndex].isLoading = true
+    
+    // Transform trade into TradeNotification format
+    const tradeNotification = {
+      symbol: trade.symbol,
+      type: trade.type,
+      entry: trade.entry,
+      stop: trade.stop,
+      takeProfits: {
+        tp1: trade.tp1,
+        tp2: trade.tp2,
+        tp3: trade.tp3,
+        tp4: trade.tp4,
+        tp5: trade.tp5,
+        tp6: trade.tp6
+      },
+      validation: {
+        isValid: true,
+        message: 'Trade forced by user',
+        volumeAnalysis: {
+          color: 'green',
+          stdBar: 0,
+          currentVolume: 0,
+          mean: 0,
+          std: 0
+        },
+        entryAnalysis: {
+          currentClose: trade.entry,
+          canEnter: true,
+          hasClosePriceBeforeEntry: true,
+          message: 'Trade forced by user'
+        }
+      },
+      analysisUrl: trade.url_analysis || '',
+      volume_adds_margin: trade.volume_adds_margin,
+      setup_description: trade.setup_description,
+      volume_required: trade.volume_required,
+      interval: trade.interval,
+      timestamp: new Date().toISOString()
+    }
+    console.log(tradeNotification)
     try {
-      await axios.post('/api/trade/market', trade)
+      await axios.post('/api/trade/market', tradeNotification)
       showSuccessToast()
     } catch (error) {
       console.error('Error entering market:', error)
@@ -299,7 +339,47 @@
 
     trades.value[tradeIndex].isLoadingTP1 = true
     try {
-      await axios.post('/api/trade/market/tp_adjusted', trade)
+      
+      // Transform trade into TradeNotification format
+      const tradeNotification = {
+        symbol: trade.symbol,
+        type: trade.type,
+        entry: trade.entry,
+        stop: trade.stop,
+        takeProfits: {
+          tp1: trade.tp1,
+          tp2: trade.tp2,
+          tp3: trade.tp3,
+          tp4: trade.tp4,
+          tp5: trade.tp5,
+          tp6: trade.tp6
+        },
+        validation: {
+          isValid: true,
+          message: 'Trade forced by user (TP1 adjusted)',
+          volumeAnalysis: {
+            color: 'green',
+            stdBar: 0,
+            currentVolume: 0,
+            mean: 0,
+            std: 0
+          },
+          entryAnalysis: {
+            currentClose: trade.entry,
+            canEnter: true,
+            hasClosePriceBeforeEntry: true,
+            message: 'Trade forced by user (TP1 adjusted)'
+          }
+        },
+        analysisUrl: trade.url_analysis || '',
+        volume_adds_margin: trade.volume_adds_margin,
+        setup_description: trade.setup_description,
+        volume_required: trade.volume_required,
+        interval: trade.interval,
+        timestamp: new Date().toISOString()
+      }
+      console.log(tradeNotification)
+      await axios.post('/api/trade/market/tp_adjusted', tradeNotification)
       showSuccessToast()
     } catch (error) {
       console.error('Error entering market with modified TP1:', error)
