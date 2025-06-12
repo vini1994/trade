@@ -21,7 +21,7 @@ export class LeverageCalculator {
 
     constructor() {
         this.apiClient = new BingXApiClient();
-        this.maxLeverage = Number(process.env.MAX_LEVERAGE) || 20; // Default to 20x max leverage
+        this.maxLeverage = Number(process.env.MAX_LEVERAGE) || 200; // Default to 200x max leverage
         // Convert percentage from .env to decimal (e.g., 50% -> 0.5)
         const safetyFactorPercent = Number(process.env.LEVERAGE_SAFETY_FACTOR_PERCENT) || 50; // Default to 50% if not specified in .env
         this.safetyFactor = safetyFactorPercent / 100;
@@ -66,7 +66,10 @@ export class LeverageCalculator {
             // Apply safety factor to theoretical max leverage to account for market volatility
             // and provide a buffer against liquidation. This makes the leverage more conservative
             // and reduces the risk of getting liquidated during market swings.
-            const theoreticalRealMaxLeverage = theoreticalMaxLeverage * this.safetyFactor;
+            let theoreticalRealMaxLeverage = Math.floor(theoreticalMaxLeverage * this.safetyFactor);
+            if (theoreticalRealMaxLeverage < 1){
+                theoreticalRealMaxLeverage = 1
+            }
 
             // Use the minimum between theoretical max leverage, exchange max leverage, and configured max leverage
             const optimalLeverage = Math.min(
