@@ -38,12 +38,13 @@ export class NotificationTradeService {
             setup_description: notification.setup_description,
             volume_required: notification.volume_required,
             modify_tp1: false,
-            interval: notification.interval
+            interval: notification.interval 
         };
     }
 
 
     private async executeTrade(trade: Trade, tradeNotification: TradeNotification) {
+        console.log(tradeNotification)
         console.log(trade)
         // Check if BingX API credentials are available
         const bingxApiKey = process.env.BINGX_API_KEY;
@@ -81,7 +82,8 @@ export class NotificationTradeService {
                 setup_description: trade.setup_description,
                 volume_required: trade.volume_required,
                 isWarning: false,
-                manually_generated: true
+                manually_generated: true,
+                interval: trade.interval
             });
             return;
         }
@@ -102,7 +104,8 @@ export class NotificationTradeService {
                 volume_adds_margin: trade.volume_adds_margin,
                 setup_description: trade.setup_description,
                 volume_required: trade.volume_required,
-                modify_tp1: false
+                modify_tp1: false,
+                interval: trade.interval
             });
 
             if (executionResult.success) {
@@ -153,8 +156,8 @@ export class NotificationTradeService {
                     } : undefined,
                     executionError: !executionResult.success ? executionResult.message : undefined,
                     isWarning: false,
-                    manually_generated: true
-
+                    manually_generated: true,
+                    interval: trade.interval
                 });
             } else {
                 console.error('\nTrade Execution Failed:');
@@ -189,8 +192,8 @@ export class NotificationTradeService {
                 setup_description: trade.setup_description,
                 volume_required: trade.volume_required,
                 isWarning: false,
-                manually_generated: true
-
+                manually_generated: true,
+                interval: trade.interval
             });
         }
 
