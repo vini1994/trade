@@ -154,7 +154,8 @@ export class TradeCronJob {
                         volume_adds_margin: trade.volume_adds_margin,
                         setup_description: trade.setup_description,
                         volume_required: trade.volume_required,
-                        modify_tp1: false
+                        modify_tp1: false,
+                        interval: trade.interval
                     });
 
                     if (executionResult.success) {
@@ -245,8 +246,15 @@ export class TradeCronJob {
         // Initial execution after 30 seconds
         setTimeout(async () => {
             console.log('Executing initial trade check after 30 seconds...');
-            const trades = this.readTrades('5m'); // Default to 5m interval for initial check
+            const trades5 = this.readTrades('5m'); // Default to 5m interval for initial check
+            await this.processAndDisplayTrades(trades5);
+
+            const trades15 = this.readTrades('15m'); // Default to 15m interval for initial check
+            await this.processAndDisplayTrades(trades15);
+
+            const trades = this.readTrades('1h'); // Default to 1h interval for initial check
             await this.processAndDisplayTrades(trades);
+
         }, 30000);
 
         // Schedule the job to run at minute 1 of every hour

@@ -35,6 +35,8 @@ export interface Trade {
     modify_tp1?: boolean | false;
     interval?: AllowedInterval | null;
     url_analysis?: string | null;
+    isLoading?: boolean;
+    isLoadingTP1?: boolean;
 }
 
 export interface BingXOrderResponse {

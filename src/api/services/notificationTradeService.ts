@@ -37,7 +37,8 @@ export class NotificationTradeService {
             volume_adds_margin: notification.volume_adds_margin,
             setup_description: notification.setup_description,
             volume_required: notification.volume_required,
-            modify_tp1: false
+            modify_tp1: false,
+            interval: notification.interval
         };
     }
 
