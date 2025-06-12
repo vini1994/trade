@@ -51,7 +51,7 @@ export class BingXWebSocket {
                     // First try to decode as plain text
                     decodedMsg = buffer.toString('utf-8');
                     
-                    // Handle plain text messages first
+                    // Handle plain text messages first (Ping/Pong)
                     if (decodedMsg === "Ping" || decodedMsg === "Pong") {
                         this.lastPongTime = Date.now();
                         return;
@@ -64,8 +64,13 @@ export class BingXWebSocket {
                     } catch (parseError) {
                         // If direct parsing fails, try decompressing
                         try {
-                            decodedMsg = zlib.gunzipSync(buffer).toString('utf-8');
-                            obj = JSON.parse(decodedMsg);
+                            const decompressed = zlib.gunzipSync(buffer).toString('utf-8');
+                            // Check if decompressed message is Ping/Pong
+                            if (decompressed === "Ping" || decompressed === "Pong") {
+                                this.lastPongTime = Date.now();
+                                return;
+                            }
+                            obj = JSON.parse(decompressed);
                         } catch (decompressError) {
                             console.error('Failed to parse or decompress message:', decompressError);
                             return;
