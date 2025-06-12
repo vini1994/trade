@@ -130,6 +130,7 @@ export class BingXOrderExecutor {
         const normalizedPair = normalizeSymbolBingX(pair);
         const path = '/openApi/swap/v2/trade/order';
         const timestamp = Date.now().toString();
+
         const params: any = {
             symbol: normalizedPair,
             side: side,
@@ -144,8 +145,49 @@ export class BingXOrderExecutor {
         try {
             const response = await this.apiClient.post<BingXOrderResponse>(path, params);
             
+            // Check if the response indicates an error
+            if (response && typeof response === 'object' && 'code' in response && response.code !== 0) {
+                if (response.code === 110418) {
+                    // Extract max trailing distance from error message
+                    const maxTrailingDistanceMatch = response.msg.match(/maximum trailing distance of ([\d.]+)/);
+                    if (!maxTrailingDistanceMatch) {
+                        throw new Error('Could not extract maximum trailing distance from error message');
+                    }
+                    
+                    const maxTrailingDistance = parseFloat(maxTrailingDistanceMatch[1]);
+                    console.log(`Extracted maximum trailing distance: ${maxTrailingDistance}`);
+                    
+                    // Adjust price to meet the maximum allowed distance
+                    let adjustedPrice: number;
+                    adjustedPrice = maxTrailingDistance*0.95;
+                    
+                    console.log(`Adjusted trailing stop price from ${price} to ${adjustedPrice} to meet maximum trailing distance of ${maxTrailingDistance}`);
+                    
+                    params.price = adjustedPrice.toString();
+                    const retryResponse = await this.apiClient.post<BingXOrderResponse>(path, params);
+                    
+                    // Save log if tradeId is provided and retry was successful
+                    if (tradeId && retryResponse.code === 0) {
+                        await this.tradeDatabase.saveTradeLog(
+                            tradeId,
+                            normalizedPair,
+                            side,
+                            positionSide,
+                            'TRAILING_STOP_MARKET',
+                            adjustedPrice,
+                            activationPrice,
+                            quantity,
+                            retryResponse
+                        );
+                    }
+                    
+                    return retryResponse;
+                }
+                throw new Error(`API Error: ${response.msg} (code: ${response.code})`);
+            }
+            
             // Save log if tradeId is provided
-            if (tradeId) {
+            if (response && typeof response === 'object' && 'code' in response && response.code == 0 && tradeId) {
                 await this.tradeDatabase.saveTradeLog(
                     tradeId,
                     normalizedPair,
