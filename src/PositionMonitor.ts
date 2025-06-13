@@ -5,6 +5,7 @@ import { Position, MonitoredPosition } from './utils/types';
 import { OrderMonitor, Order } from './OrderMonitor';
 import { BingXOrderExecutor } from './BingXOrderExecutor';
 import { normalizeSymbolBingX } from './utils/bingxUtils';
+import { NotificationService } from './NotificationService';
 import * as dotenv from 'dotenv';
 
 // Load environment variables
@@ -15,6 +16,7 @@ export class PositionMonitor {
     private tradeDatabase: TradeDatabase;
     private orderMonitor: OrderMonitor;
     private orderExecutor: BingXOrderExecutor;
+    private notificationService: NotificationService;
     private monitoredPositions: Map<string, MonitoredPosition> = new Map();
     private onPriceUpdate?: (position: MonitoredPosition) => void;
     private readonly limitOrderFee: number;
@@ -25,6 +27,7 @@ export class PositionMonitor {
         this.tradeDatabase = new TradeDatabase();
         this.orderMonitor = new OrderMonitor();
         this.orderExecutor = new BingXOrderExecutor();
+        this.notificationService = new NotificationService();
         this.onPriceUpdate = onPriceUpdate;
         this.limitOrderFee = parseFloat(process.env.BINGX_LIMIT_ORDER_FEE || '0.0002');
         this.marketOrderFee = parseFloat(process.env.BINGX_MARKET_ORDER_FEE || '0.0005');
@@ -51,6 +54,185 @@ export class PositionMonitor {
         return Math.max(...matchingTrades.map(trade => trade.id));
     }
 
+    private async checkStopLossBeforeLiquidation(
+        position: Position,
+        stopLossOrder: Order | undefined
+    ): Promise<void> {
+        if (!stopLossOrder || parseFloat(position.positionAmt) === 0) {
+            return;
+        }
+
+        const stopPrice = parseFloat(stopLossOrder.stopPrice);
+        const currentPrice = parseFloat(position.markPrice);
+        const entryPrice = parseFloat(position.avgPrice);
+        
+        // Calculate liquidation price based on leverage and position side
+        const liquidationPrice = parseFloat(position.liquidationPrice); // For SHORT positions
+
+        const isBeforeLiquidation = position.positionSide === 'LONG'
+            ? stopPrice < liquidationPrice
+            : stopPrice > liquidationPrice;
+
+        if (isBeforeLiquidation) {
+            await this.notificationService.sendTradeNotification({
+                symbol: position.symbol,
+                type: position.positionSide,
+                entry: entryPrice,
+                stop: stopPrice,
+                takeProfits: {
+                    tp1: 0,
+                    tp2: null,
+                    tp3: null,
+                    tp4: null,
+                    tp5: null,
+                    tp6: null
+                },
+                validation: {
+                    isValid: true,
+                    message: `Stop loss order (${stopPrice}) found before liquidation price (${liquidationPrice}) for ${position.symbol} ${position.positionSide}`,
+                    volumeAnalysis: {
+                        color: 'red',
+                        stdBar: 0,
+                        currentVolume: 0,
+                        mean: 0,
+                        std: 0
+                    },
+                    entryAnalysis: {
+                        currentClose: currentPrice,
+                        canEnter: false,
+                        hasClosePriceBeforeEntry: true,
+                        message: 'Stop loss before liquidation - DANGER'
+                    }
+                },
+                analysisUrl: '',
+                volume_required: false,
+                volume_adds_margin: false,
+                setup_description: `⚠️ DANGER: Stop loss order (${stopPrice}) is before liquidation price (${liquidationPrice}) for ${position.symbol} ${position.positionSide} position. `,
+                interval: null
+            });
+        }
+    }
+
+    private async createStopLossOrder(
+        position: Position,
+        initialStopPrice: number
+    ): Promise<Order | undefined> {
+        if (!initialStopPrice || parseFloat(position.positionAmt) === 0) {
+            return undefined;
+        }
+
+        try {
+            const newStopOrder = await this.orderExecutor.placeOrder(
+                position.symbol,
+                position.positionSide === 'LONG' ? 'SELL' : 'BUY',
+                position.positionSide,
+                'STOP',
+                initialStopPrice,
+                initialStopPrice,
+                parseFloat(position.positionAmt)
+            );
+
+            const stopLossOrder: Order = {
+                orderId: newStopOrder.data.order.orderId,
+                symbol: position.symbol,
+                side: position.positionSide === 'LONG' ? 'SELL' : 'BUY',
+                type: 'STOP',
+                price: initialStopPrice.toString(),
+                stopPrice: initialStopPrice.toString(),
+                quantity: position.positionAmt,
+                positionSide: position.positionSide,
+                status: 'NEW',
+                clientOrderId: newStopOrder.data.order.clientOrderId || '',
+                createTime: Date.now(),
+                updateTime: Date.now()
+            };
+
+            console.log(`Created new stop loss order for ${position.symbol} ${position.positionSide} at ${initialStopPrice}`);
+
+            // Send notification about the new stop loss order
+            await this.notificationService.sendTradeNotification({
+                symbol: position.symbol,
+                type: position.positionSide,
+                entry: parseFloat(position.avgPrice),
+                stop: initialStopPrice,
+                takeProfits: {
+                    tp1: 0,
+                    tp2: null,
+                    tp3: null,
+                    tp4: null,
+                    tp5: null,
+                    tp6: null
+                },
+                validation: {
+                    isValid: true,
+                    message: `New stop loss order created for ${position.symbol} ${position.positionSide}`,
+                    volumeAnalysis: {
+                        color: 'green',
+                        stdBar: 0,
+                        currentVolume: 0,
+                        mean: 0,
+                        std: 0
+                    },
+                    entryAnalysis: {
+                        currentClose: parseFloat(position.markPrice),
+                        canEnter: false,
+                        hasClosePriceBeforeEntry: true,
+                        message: 'Stop loss order created'
+                    }
+                },
+                analysisUrl: '',
+                volume_required: false,
+                volume_adds_margin: false,
+                setup_description: `✅ New stop loss order created for ${position.symbol} ${position.positionSide} position at ${initialStopPrice}. Entry: ${position.avgPrice}, Current Price: ${position.markPrice}`,
+                interval: null
+            });
+
+            return stopLossOrder;
+        } catch (error) {
+            console.error(`Error creating stop loss order for ${position.symbol} ${position.positionSide}:`, error);
+            
+            // Send notification about the error
+            await this.notificationService.sendTradeNotification({
+                symbol: position.symbol,
+                type: position.positionSide,
+                entry: parseFloat(position.avgPrice),
+                stop: initialStopPrice,
+                takeProfits: {
+                    tp1: 0,
+                    tp2: null,
+                    tp3: null,
+                    tp4: null,
+                    tp5: null,
+                    tp6: null
+                },
+                validation: {
+                    isValid: false,
+                    message: `Failed to create stop loss order for ${position.symbol} ${position.positionSide}`,
+                    volumeAnalysis: {
+                        color: 'red',
+                        stdBar: 0,
+                        currentVolume: 0,
+                        mean: 0,
+                        std: 0
+                    },
+                    entryAnalysis: {
+                        currentClose: parseFloat(position.markPrice),
+                        canEnter: false,
+                        hasClosePriceBeforeEntry: true,
+                        message: 'Error creating stop loss'
+                    }
+                },
+                analysisUrl: '',
+                volume_required: false,
+                volume_adds_margin: false,
+                setup_description: `❌ Failed to create stop loss order for ${position.symbol} ${position.positionSide} position at ${initialStopPrice}. Error: ${error instanceof Error ? error.message : 'Unknown error'}`,
+                interval: null
+            });
+
+            return undefined;
+        }
+    }
+
     private async updateMonitoredPosition(position: Position): Promise<void> {
         const positionKey = this.getPositionKey(position.symbol, position.positionSide);
         const existingPosition = this.monitoredPositions.get(positionKey);
@@ -67,38 +249,13 @@ export class PositionMonitor {
             const trade = await this.tradeDatabase.getTradeById(tradeId);
             leverage = parseFloat(position.leverage.toString());
             initialStopPrice = trade?.stop; // Using the 'stop' field from TradeRecord
+
+            // Check for stop loss before liquidation
+            await this.checkStopLossBeforeLiquidation(position, stopLossOrder);
+
             // If no stop loss order exists but we have a trade stop price, create one
-            if (!stopLossOrder && initialStopPrice && parseFloat(position.positionAmt) !== 0) {
-                try {
-                    const newStopOrder = await this.orderExecutor.placeOrder(
-                        position.symbol,
-                        position.positionSide === 'LONG' ? 'SELL' : 'BUY',
-                        position.positionSide,
-                        'STOP',
-                        initialStopPrice, // No price for STOP_MARKET orders
-                        initialStopPrice,
-                        parseFloat(position.positionAmt)
-                    );
-
-                    stopLossOrder = {
-                        orderId: newStopOrder.data.order.orderId,
-                        symbol: position.symbol,
-                        side: position.positionSide === 'LONG' ? 'SELL' : 'BUY',
-                        type: 'STOP',
-                        price: initialStopPrice.toString(), // STOP_MARKET orders don't have a price
-                        stopPrice: initialStopPrice.toString(),
-                        quantity: position.positionAmt,
-                        positionSide: position.positionSide,
-                        status: 'NEW',
-                        clientOrderId: newStopOrder.data.order.clientOrderId || '',
-                        createTime: Date.now(),
-                        updateTime: Date.now()
-                    };
-
-                    console.log(`Created new stop loss order for ${position.symbol} ${position.positionSide} at ${initialStopPrice}`);
-                } catch (error) {
-                    console.error(`Error creating stop loss order for ${position.symbol} ${position.positionSide}:`, error);
-                }
+            if (!stopLossOrder && initialStopPrice) {
+                stopLossOrder = await this.createStopLossOrder(position, initialStopPrice);
             }
         }
 
@@ -143,6 +300,15 @@ export class PositionMonitor {
         const positionSide = position.positionSide;
         const leverage = position.leverage;
 
+        // Check if stop loss is already in profit
+        const isStopLossInProfit = positionSide === 'LONG' 
+            ? currentStopPrice >= entryPrice 
+            : currentStopPrice <= entryPrice;
+        
+        if (isStopLossInProfit) {
+            return; // Don't update if stop loss is already in profit
+        }
+
         // Calculate risk (distance from entry to initial stop)
         const risk = Math.abs(entryPrice - currentStopPrice);
         
@@ -157,10 +323,15 @@ export class PositionMonitor {
                 ? entryPrice * (1 + feeRate) // For LONG, move stop above entry
                 : entryPrice * (1 - feeRate); // For SHORT, move stop below entry
 
-            // Only update if current stop is not already at or better than breakeven + fees
-            const shouldUpdate = positionSide === 'LONG'
+            // Check if current price is better than breakeven price
+            const isCurrentPriceBetter = positionSide === 'LONG'
+                ? currentPrice > breakevenWithFees
+                : currentPrice < breakevenWithFees;
+
+            // Only update if current price is better than breakeven and current stop is not already at or better than breakeven + fees
+            const shouldUpdate = isCurrentPriceBetter && (positionSide === 'LONG'
                 ? currentStopPrice < breakevenWithFees
-                : currentStopPrice > breakevenWithFees;
+                : currentStopPrice > breakevenWithFees);
 
             if (shouldUpdate) {
                 try {
@@ -185,6 +356,45 @@ export class PositionMonitor {
                     };
 
                     console.log(`Updated stop loss to breakeven + fees (${feeRate * 100}%) for ${position.symbol} ${positionSide} at ${breakevenWithFees} (leverage: ${leverage}x)`);
+                    
+                    // Send notification about stop loss moved to breakeven
+                    await this.notificationService.sendTradeNotification({
+                        symbol: position.symbol,
+                        type: positionSide,
+                        entry: entryPrice,
+                        stop: breakevenWithFees,
+                        takeProfits: {
+                            tp1: 0,
+                            tp2: null,
+                            tp3: null,
+                            tp4: null,
+                            tp5: null,
+                            tp6: null
+                        },
+                        validation: {
+                            isValid: true,
+                            message: `Stop loss moved to breakeven + fees (${(feeRate * 100).toFixed(4)}%)`,
+                            volumeAnalysis: {
+                                color: 'green',
+                                stdBar: 0,
+                                currentVolume: 0,
+                                mean: 0,
+                                std: 0
+                            },
+                            entryAnalysis: {
+                                currentClose: currentPrice,
+                                canEnter: false,
+                                hasClosePriceBeforeEntry: true,
+                                message: 'Stop loss moved to breakeven'
+                            }
+                        },
+                        analysisUrl: '',
+                        volume_required: false,
+                        volume_adds_margin: false,
+                        setup_description: `Stop loss moved to breakeven for ${position.symbol} ${positionSide} position. Risk/Reward: ${(reward/risk).toFixed(2)}:1`,
+                        interval: null
+                    });
+
                 } catch (error) {
                     console.error(`Error updating stop loss for ${position.symbol} ${positionSide}:`, error);
                 }

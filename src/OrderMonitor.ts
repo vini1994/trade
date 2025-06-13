@@ -2,6 +2,8 @@ import { BingXApiClient } from './services/BingXApiClient';
 import * as dotenv from 'dotenv';
 import { BingXOrderExecutor } from './BingXOrderExecutor';
 import { MonitoredPosition } from './utils/types';
+import { PositionValidator } from './PositionValidator';
+import { NotificationService } from './NotificationService';
 
 // Load environment variables
 dotenv.config();
@@ -35,10 +37,14 @@ export class OrderMonitor {
     private readonly apiClient: BingXApiClient;
     private openOrders: Map<string, Order> = new Map();
     private readonly orderExecutor: BingXOrderExecutor;
+    private positionValidator: PositionValidator;
+    private readonly notificationService: NotificationService;
 
     constructor() {
         this.apiClient = new BingXApiClient();
         this.orderExecutor = new BingXOrderExecutor();
+        this.positionValidator = new PositionValidator();
+        this.notificationService = new NotificationService();
     }
 
     private getOrderKey(order: Order): string {
@@ -117,9 +123,84 @@ export class OrderMonitor {
         try {
             await this.orderExecutor.cancelOrder(order.symbol, order.orderId);
             console.log(`Cancelled order ${order.orderId} for ${order.symbol} ${order.positionSide}`);
+
+            // Send notification about cancelled orphaned order
+            await this.notificationService.sendTradeNotification({
+                symbol: order.symbol,
+                type: order.positionSide,
+                entry: 0, // Not applicable for orphaned orders
+                stop: parseFloat(order.stopPrice || '0'),
+                takeProfits: {
+                    tp1: 0,
+                    tp2: null,
+                    tp3: null,
+                    tp4: null,
+                    tp5: null,
+                    tp6: null
+                },
+                validation: {
+                    isValid: true,
+                    message: `Cancelled orphaned ${order.type} order for ${order.symbol} ${order.positionSide}`,
+                    volumeAnalysis: {
+                        color: 'yellow',
+                        stdBar: 0,
+                        currentVolume: 0,
+                        mean: 0,
+                        std: 0
+                    },
+                    entryAnalysis: {
+                        currentClose: 0, // Not applicable for orphaned orders
+                        canEnter: false,
+                        hasClosePriceBeforeEntry: true,
+                        message: 'Orphaned order cancelled'
+                    }
+                },
+                analysisUrl: '',
+                volume_required: false,
+                volume_adds_margin: false,
+                setup_description: `⚠️ Cancelled orphaned ${order.type} order for ${order.symbol} ${order.positionSide}. Order ID: ${order.orderId}, Price: ${order.price}, Stop: ${order.stopPrice || 'N/A'}`,
+                interval: null
+            });
         } catch (error) {
-            console.error(`Error cancelling order ${order.orderId}:`, error);
-            throw error;
+            console.error(`Error cancelling order ${order.orderId} for ${order.symbol} ${order.positionSide}:`, error);
+            
+            // Send notification about the error cancelling the order
+            await this.notificationService.sendTradeNotification({
+                symbol: order.symbol,
+                type: order.positionSide,
+                entry: 0,
+                stop: parseFloat(order.stopPrice || '0'),
+                takeProfits: {
+                    tp1: 0,
+                    tp2: null,
+                    tp3: null,
+                    tp4: null,
+                    tp5: null,
+                    tp6: null
+                },
+                validation: {
+                    isValid: false,
+                    message: `Failed to cancel orphaned ${order.type} order for ${order.symbol} ${order.positionSide}`,
+                    volumeAnalysis: {
+                        color: 'red',
+                        stdBar: 0,
+                        currentVolume: 0,
+                        mean: 0,
+                        std: 0
+                    },
+                    entryAnalysis: {
+                        currentClose: 0,
+                        canEnter: false,
+                        hasClosePriceBeforeEntry: true,
+                        message: 'Error cancelling orphaned order'
+                    }
+                },
+                analysisUrl: '',
+                volume_required: false,
+                volume_adds_margin: false,
+                setup_description: `❌ Failed to cancel orphaned ${order.type} order for ${order.symbol} ${order.positionSide}. Order ID: ${order.orderId}, Error: ${error instanceof Error ? error.message : 'Unknown error'}`,
+                interval: null
+            });
         }
     }
 
@@ -135,8 +216,12 @@ export class OrderMonitor {
 
                 // If no position exists for this order, cancel it
                 if (!hasPosition) {
-                    console.log(`Found orphaned order for ${order.symbol} ${order.positionSide} (${order.type})`);
-                    await this.cancelOrder(order);
+                    // Check for existing position
+                    const { hasPosition: hasPositionRevalidate, message } = await this.positionValidator.hasOpenPosition(order.symbol, order.positionSide);
+                    if ((!hasPositionRevalidate) && (!message.toLocaleLowerCase().includes('erro'))) {             
+                        console.log(`Found orphaned order for ${order.symbol} ${order.positionSide} (${order.type})`);
+                        await this.cancelOrder(order);
+                    }
                 }
             }
         } catch (error) {

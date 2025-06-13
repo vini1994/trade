@@ -90,7 +90,14 @@ export class BingXOrderExecutor {
 
         // Add activationPrice for TRIGGER_LIMIT orders
         if (type === 'TRIGGER_LIMIT') {
-            params.activationPrice = price.toString();
+            const priceNum = parseFloat(price.toString());
+            if (positionSide === 'LONG') {
+                // For LONG positions, activation price should be slightly below the target price
+                params.activationPrice = (priceNum * 0.98).toString();
+            } else {
+                // For SHORT positions, activation price should be slightly above the target price
+                params.activationPrice = (priceNum * 1.02).toString();
+            }
         }
 
         try {
@@ -391,7 +398,7 @@ export class BingXOrderExecutor {
             );
 
             // Calculate position quantity based on margin and leverage, passing the trade object
-            const quantity = await this.calculatePositionQuantity(trade.symbol, leverageInfo.optimalLeverage, trade);
+            let quantity = await this.calculatePositionQuantity(trade.symbol, leverageInfo.optimalLeverage, trade);
             console.log(`Calculated position quantity: ${quantity} based on margin ${this.margin} USDT and leverage ${leverageInfo.optimalLeverage}x`);
 
             // Save trade to database first to get the tradeId
@@ -418,6 +425,15 @@ export class BingXOrderExecutor {
                 tradeRecord.id
             );
 
+            const { hasPosition: hasPositionPost, position, message: messagePost } = await this.positionValidator.hasOpenPosition(trade.symbol, trade.type);
+            
+            if (!hasPositionPost) {
+                throw new Error(`Cannot execute trade: ${messagePost}`);
+            }
+            if (parseFloat(position?.positionAmt || '0') !== 0) {
+                quantity = parseFloat(position?.positionAmt || '0')
+            }
+            
             // Place stop loss order (LIMIT)
             const stopOrder = await this.placeOrder(
                 trade.symbol,
@@ -505,7 +521,14 @@ export class BingXOrderExecutor {
 
         // Add activationPrice for TRIGGER_LIMIT orders
         if (type === 'TRIGGER_LIMIT') {
-            params.activationPrice = price.toString();
+            const priceNum = parseFloat(price.toString());
+            if (positionSide === 'LONG') {
+                // For LONG positions, activation price should be slightly below the target price
+                params.activationPrice = (priceNum * 0.98).toString();
+            } else {
+                // For SHORT positions, activation price should be slightly above the target price
+                params.activationPrice = (priceNum * 1.02).toString();
+            }
         }
 
         if (orderId) {

@@ -14,11 +14,41 @@ export class PositionMonitorCronJob {
         this.tradeOrderProcessor = new TradeOrderProcessor();
     }
 
+    private async logMonitoredPositions(): Promise<void> {
+        const positions = this.positionMonitor.getMonitoredPositions();
+        if (positions.length > 0) {
+            console.log('\nCurrent monitored positions:');
+            positions.forEach(pos => {
+                console.log(`- ${pos.symbol} ${pos.positionSide}`);
+                console.log(`  Entry: ${pos.entryPrice}`);
+                console.log(`  Current Price: ${pos.lastPrice}`);
+                if (pos.stopLossOrder) {
+                    console.log(`  Stop Loss: ${pos.stopLossOrder.stopPrice}`);
+                }
+                console.log('---');
+            });
+        } else {
+            console.log('No positions currently being monitored');
+        }
+    }
+
     public async start(): Promise<void> {
         if (this.isRunning) {
             console.log('PositionMonitorCronJob is already running');
             return;
         }
+        // Initial execution after 30 seconds
+        setTimeout(async () => {
+            console.log(`\n[${new Date().toLocaleString()}] Running position update...`);
+            await this.positionMonitor.updatePositions();
+            const monitoredPositions = this.positionMonitor.getMonitoredPositionsMap();
+            await this.tradeOrderProcessor.processTrades(monitoredPositions);
+            
+            // Log current monitored positions
+            await this.logMonitoredPositions()
+
+        }, 10000);
+
 
 
         // Schedule the job to run every minute
@@ -30,21 +60,7 @@ export class PositionMonitorCronJob {
                 await this.tradeOrderProcessor.processTrades(monitoredPositions);
                 
                 // Log current monitored positions
-                const positions = this.positionMonitor.getMonitoredPositions();
-                if (positions.length > 0) {
-                    console.log('\nCurrent monitored positions:');
-                    positions.forEach(pos => {
-                        console.log(`- ${pos.symbol} ${pos.positionSide}`);
-                        console.log(`  Entry: ${pos.entryPrice}`);
-                        console.log(`  Current Price: ${pos.lastPrice}`);
-                        if (pos.stopLossOrder) {
-                            console.log(`  Stop Loss: ${pos.stopLossOrder.stopPrice}`);
-                        }
-                        console.log('---');
-                    });
-                } else {
-                    console.log('No positions currently being monitored');
-                }
+                await this.logMonitoredPositions();
             } catch (error) {
                 console.error('Error updating positions:', error);
             }
