@@ -4,7 +4,7 @@
       <span>← Back</span>
     </button>
     <h1>Notifications History</h1>
-    <TradeListNotifications :trades="notifications" />
+    <TradeListNotifications :trades="notifications" :key="notifications.length" />
   </div>
 </template>
 
@@ -31,6 +31,9 @@ export default defineComponent({
         loading.value = true
         const response = await axios.get('/api/notifications')
         notifications.value = response.data
+        console.log(notifications.value)
+        console.log(notifications)
+        console.log(response.data)
       } catch (err) {
         error.value = 'Erro ao carregar notificações'
         console.error('Error fetching notifications:', err)
