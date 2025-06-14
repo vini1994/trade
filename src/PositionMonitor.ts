@@ -29,8 +29,8 @@ export class PositionMonitor {
         this.orderExecutor = new BingXOrderExecutor();
         this.notificationService = new NotificationService();
         this.onPriceUpdate = onPriceUpdate;
-        this.limitOrderFee = parseFloat(process.env.BINGX_LIMIT_ORDER_FEE || '0.0002');
-        this.marketOrderFee = parseFloat(process.env.BINGX_MARKET_ORDER_FEE || '0.0005');
+        this.limitOrderFee = parseFloat(process.env.BINGX_LIMIT_ORDER_FEE || '0.02');
+        this.marketOrderFee = parseFloat(process.env.BINGX_MARKET_ORDER_FEE || '0.05');
     }
 
     private getPositionKey(symbol: string, positionSide: 'LONG' | 'SHORT'): string {
@@ -291,7 +291,15 @@ export class PositionMonitor {
     }
 
     private async checkAndUpdateStopLoss(position: MonitoredPosition, currentPrice: number): Promise<void> {
+        console.log(`\n[checkAndUpdateStopLoss] Checking stop loss for ${position.symbol} ${position.positionSide}`);
+        console.log(`Current price: ${currentPrice}`);
+        
         if (!position.initialStopPrice || !position.entryPrice || !position.stopLossOrder || !position.leverage) {
+            console.log(`Missing required data - Skipping stop loss check:`);
+            console.log(`- Initial stop price: ${position.initialStopPrice}`);
+            console.log(`- Entry price: ${position.entryPrice}`);
+            console.log(`- Stop loss order: ${position.stopLossOrder ? 'Present' : 'Missing'}`);
+            console.log(`- Leverage: ${position.leverage}`);
             return;
         }
 
@@ -300,10 +308,18 @@ export class PositionMonitor {
         const positionSide = position.positionSide;
         const leverage = position.leverage;
 
+        console.log(`Position details:`);
+        console.log(`- Entry price: ${entryPrice}`);
+        console.log(`- Current stop price: ${currentStopPrice}`);
+        console.log(`- Position side: ${positionSide}`);
+        console.log(`- Leverage: ${leverage}x`);
+
         // Check if stop loss is already in profit
         const isStopLossInProfit = positionSide === 'LONG' 
             ? currentStopPrice >= entryPrice 
             : currentStopPrice <= entryPrice;
+        
+        console.log(`Stop loss profit check: ${isStopLossInProfit ? 'Stop loss is in profit - No update needed' : 'Stop loss is not in profit - Continuing check'}`);
         
         if (isStopLossInProfit) {
             return; // Don't update if stop loss is already in profit
@@ -314,28 +330,78 @@ export class PositionMonitor {
         
         // Calculate reward (distance from entry to current price)
         const reward = Math.abs(currentPrice - entryPrice);
+        
+        console.log(`Risk/Reward calculation:`);
+        console.log(`- Risk (entry to stop): ${risk}`);
+        console.log(`- Reward (entry to current): ${reward}`);
+        console.log(`- Risk/Reward ratio: ${(reward/risk).toFixed(2)}:1`);
+
         // Check if we've reached 1:1 risk/reward
         if (reward >= risk) {
-            // Calculate breakeven + fees price considering leverage
-            // For leveraged positions, fees are multiplied by leverage
-            const feeRate = this.limitOrderFee * leverage; // Using limit order fee for stop loss
+            console.log(`Risk/Reward target reached (${(reward/risk).toFixed(2)}:1) - Checking breakeven update`);
+            
+            // Calculate position margin and total position value
+            const positionAmt = Math.abs(parseFloat(position.position.positionAmt));
+            const positionValue = positionAmt * entryPrice;
+            const margin = positionValue / leverage;
+
+            console.log(`Position value calculation:`);
+            console.log(`- Position amount: ${positionAmt}`);
+            console.log(`- Position value: ${positionValue}`);
+            console.log(`- Margin: ${margin}`);
+            console.log(`- Leverage: ${leverage}x`);
+
+            // Calculate fees based on total position value
+            // Entry fee (market order) is applied to the total position value
+            const entryFeeAmount = positionValue * (this.marketOrderFee / 100);
+            // Exit fee (limit order) is applied to the total position value
+            const exitFeeAmount = positionValue * (this.limitOrderFee / 100);
+            const totalFeeAmount = entryFeeAmount + exitFeeAmount;
+
+            // Convert fee amounts to price impact
+            const feePriceImpact = totalFeeAmount / positionAmt;
+
+            console.log(`Fee calculation:`);
+            console.log(`- Entry fee amount: ${entryFeeAmount.toFixed(8)}`);
+            console.log(`- Exit fee amount: ${exitFeeAmount.toFixed(8)}`);
+            console.log(`- Total fee amount: ${totalFeeAmount.toFixed(8)}`);
+            console.log(`- Fee price impact: ${feePriceImpact.toFixed(8)}`);
+
+            // Calculate breakeven price including fees
             const breakevenWithFees = positionSide === 'LONG' 
-                ? entryPrice * (1 + feeRate) // For LONG, move stop above entry
-                : entryPrice * (1 - feeRate); // For SHORT, move stop below entry
+                ? entryPrice + feePriceImpact // For LONG: entry + fee impact
+                : entryPrice - feePriceImpact; // For SHORT: entry - fee impact
+
+            console.log(`Breakeven calculation:`);
+            console.log(`- Entry price: ${entryPrice}`);
+            console.log(`- Breakeven price with fees: ${breakevenWithFees}`);
+            console.log(`- Total fees in price: ${feePriceImpact.toFixed(8)}`);
+            console.log(`- Fee percentage of entry: ${((feePriceImpact / entryPrice) * 100).toFixed(4)}%`);
 
             // Check if current price is better than breakeven price
             const isCurrentPriceBetter = positionSide === 'LONG'
                 ? currentPrice > breakevenWithFees
                 : currentPrice < breakevenWithFees;
 
+            console.log(`Price comparison:`);
+            console.log(`- Current price better than breakeven: ${isCurrentPriceBetter}`);
+
             // Only update if current price is better than breakeven and current stop is not already at or better than breakeven + fees
             const shouldUpdate = isCurrentPriceBetter && (positionSide === 'LONG'
                 ? currentStopPrice < breakevenWithFees
                 : currentStopPrice > breakevenWithFees);
 
+            console.log(`Update decision:`);
+            console.log(`- Should update stop loss: ${shouldUpdate}`);
+
             if (shouldUpdate) {
                 try {
-
+                    console.log(`Attempting to update stop loss to breakeven + fees...`);
+                    console.log(`Fee details:`);
+                    console.log(`- Entry fee: ${(this.marketOrderFee).toFixed(4)}% of ${positionValue.toFixed(2)} = ${entryFeeAmount.toFixed(8)}`);
+                    console.log(`- Exit fee: ${(this.limitOrderFee).toFixed(4)}% of ${positionValue.toFixed(2)} = ${exitFeeAmount.toFixed(8)}`);
+                    console.log(`- Total fees: ${totalFeeAmount.toFixed(8)} (${((totalFeeAmount / positionValue) * 100).toFixed(4)}% of position value)`);
+                    
                     // Place new stop loss order at breakeven + fees
                     const newStopOrder = await this.orderExecutor.cancelReplaceOrder(
                         position.symbol,
@@ -355,7 +421,11 @@ export class PositionMonitor {
                         stopPrice: breakevenWithFees.toString()
                     };
 
-                    console.log(`Updated stop loss to breakeven + fees (${feeRate * 100}%) for ${position.symbol} ${positionSide} at ${breakevenWithFees} (leverage: ${leverage}x)`);
+                    console.log(`✅ Successfully updated stop loss to breakeven + fees`);
+                    console.log(`- New stop price: ${breakevenWithFees}`);
+                    console.log(`- Total fees: ${totalFeeAmount.toFixed(8)} (${((totalFeeAmount / positionValue) * 100).toFixed(4)}% of position value)`);
+                    console.log(`- Fee price impact: ${feePriceImpact.toFixed(8)}`);
+                    console.log(`- Leverage: ${leverage}x`);
                     
                     // Send notification about stop loss moved to breakeven
                     await this.notificationService.sendTradeNotification({
@@ -373,7 +443,7 @@ export class PositionMonitor {
                         },
                         validation: {
                             isValid: true,
-                            message: `Stop loss moved to breakeven + fees (${(feeRate * 100).toFixed(4)}%)`,
+                            message: `Stop loss moved to breakeven + fees (${((totalFeeAmount / positionValue) * 100).toFixed(4)}% of position value)`,
                             volumeAnalysis: {
                                 color: 'green',
                                 stdBar: 0,
@@ -391,7 +461,7 @@ export class PositionMonitor {
                         analysisUrl: '',
                         volume_required: false,
                         volume_adds_margin: false,
-                        setup_description: `Stop loss moved to breakeven for ${position.symbol} ${positionSide} position. Risk/Reward: ${(reward/risk).toFixed(2)}:1`,
+                        setup_description: `Stop loss moved to breakeven for ${position.symbol} ${positionSide} position. Fees: ${((totalFeeAmount / positionValue) * 100).toFixed(4)}% of position value (${totalFeeAmount.toFixed(8)}). Risk/Reward: ${(reward/risk).toFixed(2)}:1`,
                         interval: null
                     });
 
