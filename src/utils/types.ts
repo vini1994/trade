@@ -119,6 +119,7 @@ export interface Position {
     positionAmt: string;
     avgPrice: string;
     markPrice: string;
+    margin: string;
     unRealizedProfit: string;
     liquidationPrice: string;
     leverage: string;
