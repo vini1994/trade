@@ -244,10 +244,11 @@ export class PositionMonitor {
         // Get trade info to get leverage and initial stop price
         const tradeId = await this.matchPositionWithTrade(position);
         let leverage: number | undefined;
+        leverage = parseFloat(position.leverage.toString());
+
         let initialStopPrice: number | undefined;
         if (tradeId) {
             const trade = await this.tradeDatabase.getTradeById(tradeId);
-            leverage = parseFloat(position.leverage.toString());
             initialStopPrice = trade?.stop; // Using the 'stop' field from TradeRecord
 
             // Check for stop loss before liquidation
@@ -306,13 +307,13 @@ export class PositionMonitor {
         const entryPrice = position.entryPrice;
         const currentStopPrice = parseFloat(position.stopLossOrder.stopPrice);
         const positionSide = position.positionSide;
-        const leverage = position.leverage;
+        
 
         console.log(`Position details:`);
         console.log(`- Entry price: ${entryPrice}`);
         console.log(`- Current stop price: ${currentStopPrice}`);
         console.log(`- Position side: ${positionSide}`);
-        console.log(`- Leverage: ${leverage}x`);
+        console.log(`- Leverage: ${position.leverage}x`);
 
         // Check if stop loss is already in profit
         const isStopLossInProfit = positionSide === 'LONG' 
@@ -343,13 +344,13 @@ export class PositionMonitor {
             // Calculate position margin and total position value
             const positionAmt = Math.abs(parseFloat(position.position.positionAmt));
             const positionValue = positionAmt * entryPrice;
-            const margin = positionValue / leverage;
+            const margin = positionValue / position.leverage;
 
             console.log(`Position value calculation:`);
             console.log(`- Position amount: ${positionAmt}`);
             console.log(`- Position value: ${positionValue}`);
             console.log(`- Margin: ${margin}`);
-            console.log(`- Leverage: ${leverage}x`);
+            console.log(`- Leverage: ${position.leverage}x`);
 
             // Calculate fees based on total position value
             // Entry fee (market order) is applied to the total position value
@@ -425,7 +426,7 @@ export class PositionMonitor {
                     console.log(`- New stop price: ${breakevenWithFees}`);
                     console.log(`- Total fees: ${totalFeeAmount.toFixed(8)} (${((totalFeeAmount / positionValue) * 100).toFixed(4)}% of position value)`);
                     console.log(`- Fee price impact: ${feePriceImpact.toFixed(8)}`);
-                    console.log(`- Leverage: ${leverage}x`);
+                    console.log(`- Leverage: ${position.leverage}x`);
                     
                     // Send notification about stop loss moved to breakeven
                     await this.notificationService.sendTradeNotification({
@@ -462,7 +463,7 @@ export class PositionMonitor {
                         volume_required: false,
                         volume_adds_margin: false,
                         setup_description: `Stop loss moved to breakeven for ${position.symbol} ${positionSide} position. Fees: ${((totalFeeAmount / positionValue) * 100).toFixed(4)}% of position value (${totalFeeAmount.toFixed(8)}). Risk/Reward: ${(reward/risk).toFixed(2)}:1`,
-                        interval: null
+                        interval: '1h'
                     });
 
                 } catch (error) {
