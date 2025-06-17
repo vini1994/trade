@@ -218,5 +218,7 @@ export interface PositionHistory {
 export interface BingXPositionHistoryResponse {
     code: number;
     msg: string;
-    data: PositionHistory[];
+    data: {
+        positionHistory: PositionHistory[];
+    }
 } 

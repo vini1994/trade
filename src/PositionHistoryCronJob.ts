@@ -1,33 +1,37 @@
 import * as cron from 'node-cron';
 import { PositionHistory } from './PositionHistory';
+import { TradeDatabase } from './TradeDatabase';
 
 export class PositionHistoryCronJob {
     private positionHistory: PositionHistory;
+    private tradeDatabase: TradeDatabase;
     private isRunning: boolean = false;
-    private symbols: string[] = [
-        'ALL'
-        /*
-        'BTCUSDT',
-        'ETHUSDT',
-        'BNBUSDT',
-        'ADAUSDT',
-        'SOLUSDT',
-        'DOTUSDT',
-        'LINKUSDT',
-        'MATICUSDT',
-        'AVAXUSDT',
-        'UNIUSDT'*/
-    ];
+    private symbols: string[] = [];
 
     constructor() {
         this.positionHistory = new PositionHistory();
+        this.tradeDatabase = new TradeDatabase();
+    }
+
+    private async loadSymbolsFromDatabase(): Promise<void> {
+        try {
+            this.symbols = await this.tradeDatabase.getDistinctSymbols();
+            console.log(`[${new Date().toLocaleString()}] Loaded ${this.symbols.length} symbols from database: ${this.symbols.join(', ')}`);
+        } catch (error) {
+            console.error(`[${new Date().toLocaleString()}] Error loading symbols from database:`, error);
+            // Fallback to default symbols if database fails
+            this.symbols = ['ALL'];
+        }
     }
 
     private async updatePositionHistory(): Promise<void> {
         try {
             console.log(`\n[${new Date().toLocaleString()}] Starting position history cache update...`);
             
-            // Update cache for all configured symbols
+            // Reload symbols from database before updating cache
+            await this.loadSymbolsFromDatabase();
+            
+            // Update cache for all symbols from database
             await this.positionHistory.createOrUpdateCache(this.symbols);
             
             console.log(`[${new Date().toLocaleString()}] Position history cache update completed successfully`);
@@ -42,7 +46,7 @@ export class PositionHistoryCronJob {
             return;
         }
 
-        // Initial execution after 30 seconds
+        // Initial execution after 1 second
         setTimeout(async () => {
             console.log(`\n[${new Date().toLocaleString()}] Running initial position history update...`);
             await this.updatePositionHistory();
@@ -55,7 +59,7 @@ export class PositionHistoryCronJob {
 
         this.isRunning = true;
         console.log('PositionHistoryCronJob started. Will run every 30 minutes.');
-        console.log(`Monitoring symbols: ${this.symbols.join(', ')}`);
+        console.log('Symbols will be dynamically loaded from database on each run.');
     }
 
     public stop(): void {
@@ -69,43 +73,11 @@ export class PositionHistoryCronJob {
     }
 
     /**
-     * Set the symbols to monitor for position history
-     * @param symbols Array of symbols to monitor
-     */
-    public setSymbols(symbols: string[]): void {
-        this.symbols = symbols;
-        console.log(`Updated symbols to monitor: ${this.symbols.join(', ')}`);
-    }
-
-    /**
-     * Get the current symbols being monitored
+     * Get the current symbols being monitored (from database)
      * @returns Array of symbols
      */
     public getSymbols(): string[] {
         return [...this.symbols];
-    }
-
-    /**
-     * Add a symbol to the monitoring list
-     * @param symbol Symbol to add
-     */
-    public addSymbol(symbol: string): void {
-        if (!this.symbols.includes(symbol)) {
-            this.symbols.push(symbol);
-            console.log(`Added symbol to monitoring: ${symbol}`);
-        }
-    }
-
-    /**
-     * Remove a symbol from the monitoring list
-     * @param symbol Symbol to remove
-     */
-    public removeSymbol(symbol: string): void {
-        const index = this.symbols.indexOf(symbol);
-        if (index > -1) {
-            this.symbols.splice(index, 1);
-            console.log(`Removed symbol from monitoring: ${symbol}`);
-        }
     }
 
     /**
@@ -114,5 +86,13 @@ export class PositionHistoryCronJob {
     public async manualUpdate(): Promise<void> {
         console.log(`\n[${new Date().toLocaleString()}] Manual position history update triggered...`);
         await this.updatePositionHistory();
+    }
+
+    /**
+     * Reload symbols from database manually
+     */
+    public async reloadSymbols(): Promise<void> {
+        console.log(`\n[${new Date().toLocaleString()}] Manually reloading symbols from database...`);
+        await this.loadSymbolsFromDatabase();
     }
 } 

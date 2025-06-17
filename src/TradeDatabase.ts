@@ -512,4 +512,16 @@ export class TradeDatabase {
 
         return rows.map(row => JSON.parse(row.notification_data));
     }
+
+    public async getDistinctSymbols(): Promise<string[]> {
+        const result = await this.db.all(`
+            SELECT DISTINCT symbol FROM (
+                SELECT symbol FROM trades
+                UNION
+                SELECT symbol FROM trade_notifications
+            ) ORDER BY symbol
+        `);
+        
+        return result.map((row: { symbol: string }) => row.symbol);
+    }
 } 

@@ -31,7 +31,11 @@ export class PositionHistory {
     }
 
     public async getPositionHistory(params: PositionHistoryParams): Promise<PositionHistoryType[]> {
+        console.log('=== getPositionHistory START ===');
+        console.log('Input parameters:', JSON.stringify(params, null, 2));
+        
         const { useCache = true, ...requestParams } = params;
+        console.log('useCache:', useCache);
 
         // Set default values for startTs and endTs if not provided
         const now = Date.now();
@@ -46,13 +50,21 @@ export class PositionHistory {
         if (requestParams.pageIndex) apiParams.pageIndex = requestParams.pageIndex;
         if (requestParams.pageSize) apiParams.pageSize = requestParams.pageSize;
 
+        console.log('API parameters:', JSON.stringify(apiParams, null, 2));
+        console.log('Time range:', {
+            start: new Date(apiParams.startTs as number).toISOString(),
+            end: new Date(apiParams.endTs as number).toISOString()
+        });
+
         let allPositions: PositionHistoryType[] = [];
         let maxCloseTimeFromCache = 0;
+        let cachedData: PositionHistoryType[] = [];
 
         // First, try to get from cache if enabled
         if (useCache) {
+            console.log('Attempting to read from cache...');
             try {
-                const cachedData = await this.dbService.getPositionHistory(
+                cachedData = await this.dbService.getPositionHistory(
                     requestParams.symbol,
                     apiParams.startTs as number,
                     apiParams.endTs as number,
@@ -60,19 +72,26 @@ export class PositionHistory {
                     requestParams.pageSize
                 );
                 
+                console.log(`Cache query completed. Found ${cachedData.length} records in cache`);
+                
                 if (cachedData.length > 0) {
                     allPositions = cachedData;
                     // Find the maximum closeTime from cache
                     maxCloseTimeFromCache = Math.max(...cachedData.map(pos => pos.closeTime));
-                    console.log(`Found ${cachedData.length} positions in cache, max closeTime: ${new Date(maxCloseTimeFromCache).toISOString()}`);
+                    console.log(`Using ${cachedData.length} positions from cache, max closeTime: ${new Date(maxCloseTimeFromCache).toISOString()}`);
+                } else {
+                    console.log('No cached data found for the specified parameters');
                 }
             } catch (error) {
                 console.warn('Error reading from cache:', error);
             }
+        } else {
+            console.log('Cache disabled, will fetch all data from API');
         }
 
         // If we have cached data, query API only for newer records
         if (maxCloseTimeFromCache > 0) {
+            console.log('Fetching newer data from API (incremental update)...');
             const apiParamsForNewData: Record<string, string | number> = {
                 symbol: normalizeSymbolBingX(requestParams.symbol),
                 startTs: maxCloseTimeFromCache + 1, // Start from the next millisecond after the latest cached record
@@ -82,45 +101,71 @@ export class PositionHistory {
             if (requestParams.pageIndex) apiParamsForNewData.pageIndex = requestParams.pageIndex;
             if (requestParams.pageSize) apiParamsForNewData.pageSize = requestParams.pageSize;
 
+            console.log('API parameters for new data:', JSON.stringify(apiParamsForNewData, null, 2));
+
             try {
                 const path = '/openApi/swap/v1/trade/positionHistory';
+                console.log(`Making API call to: ${path}`);
                 const response = await this.apiClient.get<BingXPositionHistoryResponse>(path, apiParamsForNewData);
                 
-                if (response.code === 0 && response.data && response.data.length > 0) {
-                    console.log(`Found ${response.data.length} new positions from API`);
+                console.log('API response received:', {
+                    code: response.code,
+                    message: response.msg,
+                    hasData: !!response.data,
+                    positionCount: response.data?.positionHistory?.length || 0
+                });
+                
+                if (response.code === 0 && response.data && response.data.positionHistory && response.data.positionHistory.length > 0) {
+                    console.log(`Found ${response.data.positionHistory.length} new positions from API`);
                     
                     // Save new data to cache
-                    if (useCache) {
-                        try {
-                            await this.dbService.savePositionHistory(response.data);
-                        } catch (error) {
-                            console.warn('Error saving new data to cache:', error);
-                        }
+                    console.log('Saving new data to cache...');
+                    try {
+                        await this.dbService.savePositionHistory(response.data.positionHistory);
+                        console.log('Successfully saved new data to cache');
+                    } catch (error) {
+                        console.warn('Error saving new data to cache:', error);
                     }
                     
                     // Combine cached and new data
-                    allPositions = [...allPositions, ...response.data];
+                    allPositions = [...allPositions, ...response.data.positionHistory];
+                    console.log(`Combined total positions: ${allPositions.length} (${cachedData.length} from cache + ${response.data.positionHistory.length} from API)`);
+                } else {
+                    console.log('No new data found from API');
                 }
             } catch (error) {
                 console.error('Error fetching new position history from API:', error);
             }
         } else {
             // No cache data, fetch all data from API
+            console.log('Fetching all data from API (no cache data available)...');
             const path = '/openApi/swap/v1/trade/positionHistory';
+            console.log(`Making API call to: ${path}`);
 
             try {
                 const response = await this.apiClient.get<BingXPositionHistoryResponse>(path, apiParams);
-                if (response.code !== 0) {
+                console.log('API response received:', {
+                    code: response.code,
+                    message: response.msg,
+                    hasData: !!response.data,
+                    positionCount: response.data?.positionHistory?.length || 0
+                });
+                
+                if (response.code !== 0 || !response.data || !response.data.positionHistory)  {
                     console.warn(`API returned non-zero code: ${response.code}, message: ${response.msg}`);
+                    console.log('=== getPositionHistory END (no data) ===');
                     return [];
                 }
 
-                const positions = response.data || [];
+                const positions = response.data.positionHistory || [];
+                console.log(`Retrieved ${positions.length} positions from API`);
                 
                 // Save to cache if we got data
-                if (positions.length > 0 && useCache) {
+                if (positions.length > 0) {
+                    console.log('Saving data to cache...');
                     try {
                         await this.dbService.savePositionHistory(positions);
+                        console.log('Successfully saved data to cache');
                     } catch (error) {
                         console.warn('Error saving to cache:', error);
                     }
@@ -129,10 +174,12 @@ export class PositionHistory {
                 allPositions = positions;
             } catch (error) {
                 console.error('Error fetching position history:', error);
+                console.log('=== getPositionHistory END (error) ===');
                 return [];
             }
         }
 
+        console.log(`=== getPositionHistory END (success) - Returning ${allPositions.length} positions ===`);
         return allPositions;
     }
 
@@ -180,7 +227,8 @@ export class PositionHistory {
     public async createOrUpdateCache(symbols: string[]): Promise<void> {
         console.log(`Starting cache update for ${symbols.length} symbols...`);
         
-        for (const symbol of symbols) {
+        for (let i = 0; i < symbols.length; i++) {
+            const symbol = symbols[i];
             try {
                 console.log(`Updating cache for symbol: ${symbol}`);
                 
@@ -207,9 +255,16 @@ export class PositionHistory {
                 await this.getPositionHistory({
                     symbol,
                     startTs,
-                    useCache: false
+                    useCache: true
                 });
                 console.log(`Successfully updated cache for symbol: ${symbol}`);
+                
+                // Add random delay between symbols (1-3 seconds) except for the last symbol
+                if (i < symbols.length - 1) {
+                    const delay = Math.floor(Math.random() * 2000) + 1000; // Random delay between 1-3 seconds
+                    console.log(`Waiting ${delay}ms before processing next symbol...`);
+                    await new Promise(resolve => setTimeout(resolve, delay));
+                }
             } catch (error) {
                 console.error(`Error updating cache for symbol ${symbol}:`, error);
                 // Continue with next symbol even if one fails
