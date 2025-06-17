@@ -194,4 +194,29 @@ export interface TradeNotification {
     setup_description: string | null;
     manually_generated?: boolean;
     interval?: AllowedInterval | null;
+}
+
+export interface PositionHistory {
+    symbol: string;
+    positionId: string;
+    positionSide: string;
+    isolated: boolean;
+    closeAllPositions: boolean;
+    positionAmt: string;
+    closePositionAmt: string;
+    realisedProfit: string;
+    netProfit: string;
+    avgClosePrice: number;
+    avgPrice: string;
+    leverage: number;
+    positionCommission: string;
+    totalFunding: string;
+    openTime: number;
+    closeTime: number;
+}
+
+export interface BingXPositionHistoryResponse {
+    code: number;
+    msg: string;
+    data: PositionHistory[];
 } 
