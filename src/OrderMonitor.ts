@@ -216,6 +216,9 @@ export class OrderMonitor {
 
                 // If no position exists for this order, cancel it
                 if (!hasPosition) {
+                    // Add 1 second delay before checking position
+                    await new Promise(resolve => setTimeout(resolve, 1000));
+                    
                     // Check for existing position
                     const { hasPosition: hasPositionRevalidate, message } = await this.positionValidator.hasOpenPosition(order.symbol, order.positionSide);
                     if ((!hasPositionRevalidate) && (!message.toLocaleLowerCase().includes('erro'))) {             
