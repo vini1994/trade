@@ -73,6 +73,8 @@ export interface TradeRecord extends Trade {
     leverage: number;
     status: 'OPEN' | 'CLOSED';
     interval: AllowedInterval | null;
+    createdAt: string;
+    updatedAt: string;
 }
 
 export interface TradeExecutionResult {
@@ -212,6 +214,7 @@ export interface PositionHistory {
     positionCommission: string;
     totalFunding: string;
     openTime: number;
+    updateTime: number;
     closeTime: number;
 }
 
