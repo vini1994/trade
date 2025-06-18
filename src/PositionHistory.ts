@@ -30,6 +30,13 @@ export class PositionHistory {
         await this.dbService.initialize();
     }
 
+    /**
+     * Helper function to get the effective close time, using updateTime as fallback
+     */
+    private getEffectiveCloseTime(position: PositionHistoryType): number {
+        return position.closeTime || position.updateTime;
+    }
+
     public async getPositionHistory(params: PositionHistoryParams): Promise<PositionHistoryType[]> {
         console.log('=== getPositionHistory START ===');
         console.log('Input parameters:', JSON.stringify(params, null, 2));
@@ -76,8 +83,8 @@ export class PositionHistory {
                 
                 if (cachedData.length > 0) {
                     allPositions = cachedData;
-                    // Find the maximum closeTime from cache
-                    maxCloseTimeFromCache = Math.max(...cachedData.map(pos => pos.closeTime));
+                    // Find the maximum closeTime from cache, using updateTime as fallback
+                    maxCloseTimeFromCache = Math.max(...cachedData.map(pos => this.getEffectiveCloseTime(pos)));
                     console.log(`Using ${cachedData.length} positions from cache, max closeTime: ${new Date(maxCloseTimeFromCache).toISOString()}`);
                 } else {
                     console.log('No cached data found for the specified parameters');
@@ -243,9 +250,9 @@ export class PositionHistory {
 
                 let startTs: number | undefined;
                 if (cachedData.length > 0) {
-                    // Sort by closeTime in descending order and get the most recent
-                    const latestPosition = cachedData.sort((a, b) => b.closeTime - a.closeTime)[0];
-                    startTs = latestPosition.closeTime;
+                    // Sort by closeTime in descending order and get the most recent, using updateTime as fallback
+                    const latestPosition = cachedData.sort((a, b) => this.getEffectiveCloseTime(b) - this.getEffectiveCloseTime(a))[0];
+                    startTs = this.getEffectiveCloseTime(latestPosition);
                     console.log(`Using startTs from latest cached position: ${new Date(startTs).toISOString()}`);
                 } else {
                     console.log('No cached data found, will fetch from beginning');

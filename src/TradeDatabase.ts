@@ -211,6 +211,10 @@ export class TradeDatabase {
         return await this.db.all('SELECT * FROM trades WHERE status = ?', ['CLOSED']);
     }
 
+    public async getAllTrades(): Promise<TradeRecord[]> {
+        return await this.db.all('SELECT * FROM trades ORDER BY createdAt DESC');
+    }
+
     public async updateTradeStatus(id: number, status: 'OPEN' | 'CLOSED'): Promise<void> {
         const now = new Date().toISOString();
         await this.db.run(
