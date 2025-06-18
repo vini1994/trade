@@ -138,9 +138,9 @@ export class BingXApiClient {
                 const result: any = {};
                 for (const [key, value] of Object.entries(obj)) {
                     // Check if the value is a string that looks like a BigInt
-                    if ((typeof value === 'string' && /^\d{16,}$/.test(value)) || (key === 'orderID')) {
+                    if ((typeof value === 'string' && /^\d{16,}$/.test(value))) {
                         try {
-                            result[key] = BigInt(value+'').toString();
+                            result[key] = BigInt(value).toString();
                         } catch {
                             result[key] = value;
                         }

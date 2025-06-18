@@ -48,9 +48,17 @@ export class DatabasePositionHistoryService {
                 positionCommission TEXT NOT NULL,
                 totalFunding TEXT NOT NULL,
                 openTime INTEGER NOT NULL,
-                closeTime INTEGER
+                closeTime INTEGER,
+                updateTime INTEGER
             )
         `);
+
+        // Add updateTime column if it doesn't exist (for existing databases)
+        try {
+            await this.db.exec('ALTER TABLE position_history ADD COLUMN updateTime INTEGER');
+        } catch (error) {
+            // Column already exists, ignore error
+        }
     }
 
     public async savePositionHistory(positions: PositionHistory[]): Promise<void> {
@@ -61,8 +69,8 @@ export class DatabasePositionHistoryService {
                 positionId, symbol, positionSide, isolated, closeAllPositions,
                 positionAmt, closePositionAmt, realisedProfit, netProfit,
                 avgClosePrice, avgPrice, leverage, positionCommission,
-                totalFunding, openTime, closeTime
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                totalFunding, openTime, closeTime, updateTime
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `);
 
         for (const position of positions) {
@@ -82,7 +90,8 @@ export class DatabasePositionHistoryService {
                 position.positionCommission,
                 position.totalFunding,
                 position.openTime,
-                position.closeTime
+                position.closeTime,
+                position.updateTime
             );
         }
 
@@ -121,7 +130,8 @@ export class DatabasePositionHistoryService {
             params.push(endTs);
         }
 
-        query += ' ORDER BY closeTime DESC LIMIT ? OFFSET ?';
+        // Use COALESCE to fallback to updateTime when closeTime is null
+        query += ' ORDER BY COALESCE(closeTime, updateTime) DESC LIMIT ? OFFSET ?';
         params.push(pageSize, offset);
 
         return this.db.all<PositionHistory[]>(query, params);
