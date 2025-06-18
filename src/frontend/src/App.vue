@@ -3,8 +3,13 @@
     <nav class="navbar navbar-expand-lg bg-body-tertiary shadow-sm">
       <div class="container">
         <div class="d-flex justify-content-between w-100 align-items-center">
-          <div>
-            <h1 class="h4 mb-0">Trade Manager</h1>
+          <div class="d-flex align-items-center">
+            <h1 class="h4 mb-0 me-4">Trade Manager</h1>
+            <div class="navbar-nav">
+              <router-link to="/" class="nav-link" active-class="active">Trades</router-link>
+              <router-link to="/dashboard" class="nav-link" active-class="active">Dashboard</router-link>
+              <router-link to="/notifications" class="nav-link" active-class="active">Notificações</router-link>
+            </div>
           </div>
         </div>
       </div>

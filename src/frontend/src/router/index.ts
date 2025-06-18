@@ -2,6 +2,7 @@ import { createRouter, createWebHistory } from 'vue-router'
 import TradeList from '../views/TradeList.vue'
 import TradeForm from '../views/TradeForm.vue'
 import NotificationsHistory from '../views/NotificationsHistory.vue'
+import Dashboard from '../views/Dashboard.vue'
 
 const router = createRouter({
   history: createWebHistory(),
@@ -10,6 +11,11 @@ const router = createRouter({
       path: '/',
       name: 'home',
       component: TradeList
+    },
+    {
+      path: '/dashboard',
+      name: 'dashboard',
+      component: Dashboard
     },
     {
       path: '/trade/new',
