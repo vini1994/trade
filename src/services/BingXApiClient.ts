@@ -3,41 +3,9 @@ import crypto from 'crypto';
 import * as dotenv from 'dotenv';
 import winston from 'winston';
 import * as path from 'path';
+import { logger } from '../utils/logger';
 
 dotenv.config();
-
-// Configure Winston logger
-const logger = winston.createLogger({
-    level: 'info',
-    format: winston.format.combine(
-        winston.format.timestamp(),
-        winston.format.json()
-    ),
-    transports: [
-        // Write all logs to console
-        new winston.transports.Console({
-            format: winston.format.combine(
-                winston.format.colorize(),
-                winston.format.simple()
-            )
-        }),
-        // Write all logs with level 'info' and below to bingx-api.log
-        new winston.transports.File({
-            filename: path.join(__dirname, '../../logs/bingx-api.log'),
-            maxsize: 5242880, // 5MB
-            maxFiles: 5,
-            tailable: true
-        }),
-        // Write all errors to bingx-api-error.log
-        new winston.transports.File({
-            filename: path.join(__dirname, '../../logs/bingx-api-error.log'),
-            level: 'error',
-            maxsize: 5242880, // 5MB
-            maxFiles: 5,
-            tailable: true
-        })
-    ]
-});
 
 export interface BingXApiConfig {
     useAuth?: boolean;
@@ -211,21 +179,41 @@ export class BingXApiClient {
                 if (response.status === 200 && 
                     response.data && 
                     typeof response.data === 'object' && 
-                    'code' in response.data && 
-                    response.data.code === 80012) {
-                    
-                    // Generate random delay between 1 and 30 seconds
-                    const delay = Math.floor(Math.random() * 30000) + 1000;
-                    logger.warn(`System busy response received, retrying after ${delay}ms`, {
-                        requestId,
-                        path,
-                        attempt,
-                        maxRetries,
-                        responseData: response.data
-                    });
-                    
-                    await this.sleep(delay);
-                    continue;
+                    'code' in response.data) {
+                    if (response.data.code === 80012) {
+                        // Generate random delay between 1 and 30 seconds
+                        const delay = Math.floor(Math.random() * 30000) + 1000;
+                        logger.warn(`System busy response received, retrying after ${delay}ms`, {
+                            requestId,
+                            path,
+                            attempt,
+                            maxRetries,
+                            responseData: response.data
+                        });
+                        await this.sleep(delay);
+                        continue;
+                    } else if (response.data.code === 100410) {
+                        // Handle frequency limit: wait until the unblock timestamp
+                        const msg = (response.data as any).msg;
+                        const unblockMatch = /unblocked after (\d{13,})/.exec(msg);
+                        if (unblockMatch) {
+                            const unblockTimestamp = parseInt(unblockMatch[1], 10);
+                            const now = Date.now();
+                            const waitTime = unblockTimestamp - now;
+                            if (waitTime > 0) {
+                                logger.warn(`Frequency limit hit (100410). Waiting ${waitTime}ms until ${unblockTimestamp}`, {
+                                    requestId,
+                                    path,
+                                    attempt,
+                                    maxRetries,
+                                    unblockTimestamp,
+                                    now
+                                });
+                                await this.sleep(waitTime);
+                                continue;
+                            }
+                        }
+                    }
                 }
 
                 logger.info(`${method} request successful`, {
@@ -256,6 +244,30 @@ export class BingXApiClient {
                     
                     await this.sleep(delay);
                     continue;
+                }
+
+                // Handle frequency limit error (100410) in error response
+                if (axios.isAxiosError(error) && 
+                    error.response?.status === 200 && 
+                    error.response?.data?.code === 100410) {
+                    const msg = error.response.data.msg;
+                    const unblockMatch = /unblocked after (\d{13,})/.exec(msg);
+                    if (unblockMatch) {
+                        const unblockTimestamp = parseInt(unblockMatch[1], 10);
+                        const now = Date.now();
+                        const waitTime = unblockTimestamp - now;
+                        if (waitTime > 0) {
+                            logger.warn(`Frequency limit hit (100410). Waiting ${waitTime}ms until ${unblockTimestamp}`, {
+                                path,
+                                attempt,
+                                maxRetries,
+                                unblockTimestamp,
+                                now
+                            });
+                            await this.sleep(waitTime);
+                            continue;
+                        }
+                    }
                 }
 
                 if (attempt === maxRetries) {
