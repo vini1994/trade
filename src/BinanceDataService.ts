@@ -3,6 +3,7 @@ import sqlite3 from 'sqlite3';
 import { open } from 'sqlite';
 import * as path from 'path';
 import { KlineData, AllowedInterval } from './utils/types';
+import { logger } from './utils/logger';
 
 
 interface CacheKey {
@@ -70,6 +71,26 @@ export class BinanceDataService {
         };
     }
 
+    // Função utilitária para retry com delay exponencial
+    private async withRetry<T>(fn: () => Promise<T>, retries = 3, delayMs = 200): Promise<T> {
+        let lastError;
+        for (let i = 0; i < retries; i++) {
+            try {
+                return await fn();
+            } catch (error: any) {
+                if (error && error.code === 'SQLITE_BUSY') {
+                    lastError = error;
+                    if (i < retries - 1) {
+                        await new Promise(res => setTimeout(res, delayMs * Math.pow(2, i)));
+                        continue;
+                    }
+                }
+                throw error;
+            }
+        }
+        throw lastError;
+    }
+
     private async getCachedData(symbol: string, timeComponents: CacheKey): Promise<KlineData[] | null> {
         const query = timeComponents.interval === '1h' 
             ? 'SELECT data FROM kline_cache WHERE symbol = ? AND interval = ? AND hour = ? AND day = ? AND month = ? AND year = ? AND minutes = 0'
@@ -79,10 +100,10 @@ export class BinanceDataService {
             ? [symbol, timeComponents.interval, timeComponents.hour, timeComponents.day, timeComponents.month, timeComponents.year]
             : [symbol, timeComponents.interval, timeComponents.hour, timeComponents.day, timeComponents.month, timeComponents.year, timeComponents.minutes];
 
-        const result = await this.db.get(query, params);
+        const result = await this.withRetry(() => this.db.get(query, params));
 
-        if (result) {
-            return JSON.parse(result.data);
+        if (result && typeof (result as { data?: string }).data === 'string') {
+            return JSON.parse((result as { data: string }).data);
         }
         return null;
     }
@@ -94,7 +115,7 @@ export class BinanceDataService {
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         `;
         
-        await this.db.run(query, [
+        await this.withRetry(() => this.db.run(query, [
             symbol,
             timeComponents.interval,
             timeComponents.hour,
@@ -104,7 +125,7 @@ export class BinanceDataService {
             timeComponents.minutes,
             JSON.stringify(data),
             Date.now()
-        ]);
+        ]));
     }
 
     private parseKlineData(kline: any[]): KlineData {
@@ -134,7 +155,7 @@ export class BinanceDataService {
         // Check cache first
         const cachedData = await this.getCachedData(symbol, timeComponents);
         if (cachedData) {
-            console.log(`Returning cached data for ${symbol} (${interval}) at ${timeComponents.hour}:${timeComponents.minutes} on ${timeComponents.day}/${timeComponents.month}/${timeComponents.year}`);
+            logger.info(`Returning cached data for ${symbol} (${interval}) at ${timeComponents.hour}:${timeComponents.minutes} on ${timeComponents.day}/${timeComponents.month}/${timeComponents.year}`);
             return cachedData;
         }
 
@@ -152,10 +173,10 @@ export class BinanceDataService {
             // Cache the data
             await this.cacheData(symbol, timeComponents, klineData);
             
-            console.log(`Fetched and cached new data for ${symbol} (${interval}) at ${timeComponents.hour}:${timeComponents.minutes} on ${timeComponents.day}/${timeComponents.month}/${timeComponents.year}`);
+            logger.info(`Fetched and cached new data for ${symbol} (${interval}) at ${timeComponents.hour}:${timeComponents.minutes} on ${timeComponents.day}/${timeComponents.month}/${timeComponents.year}`);
             return klineData;
         } catch (error) {
-            console.error(`Error fetching data for ${symbol} (${interval}):`, error);
+            logger.error(`Error fetching data for ${symbol} (${interval}):`, error);
             throw error;
         }
     }

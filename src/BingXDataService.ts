@@ -6,6 +6,7 @@ import crypto from 'crypto';
 import * as dotenv from 'dotenv';
 import { KlineData, AllowedInterval } from './utils/types';
 import { normalizeSymbolBingX } from './utils/bingxUtils';
+import { logger } from './utils/logger';
 
 // Load environment variables
 dotenv.config();
@@ -85,23 +86,43 @@ export class BingXDataService {
         };
     }
 
+    // Função utilitária para retry com delay exponencial
+    private async withRetry<T>(fn: () => Promise<T>, retries = 3, delayMs = 200): Promise<T> {
+        let lastError;
+        for (let i = 0; i < retries; i++) {
+            try {
+                return await fn();
+            } catch (error: any) {
+                if (error && error.code === 'SQLITE_BUSY') {
+                    lastError = error;
+                    if (i < retries - 1) {
+                        await new Promise(res => setTimeout(res, delayMs * Math.pow(2, i)));
+                        continue;
+                    }
+                }
+                throw error;
+            }
+        }
+        throw lastError;
+    }
+
     private async getCachedData(symbol: string, timeComponents: CacheKey): Promise<KlineData[] | null> {
-        const result = await this.db.get(
+        const result = await this.withRetry(() => this.db.get(
             'SELECT data FROM kline_cache WHERE symbol = ? AND interval = ? AND hour = ? AND day = ? AND month = ? AND year = ? AND minute = ?',
             [symbol, timeComponents.interval, timeComponents.hour, timeComponents.day, timeComponents.month, timeComponents.year, timeComponents.minute]
-        );
+        ));
 
-        if (result) {
-            return JSON.parse(result.data);
+        if (result && typeof (result as { data?: string }).data === 'string') {
+            return JSON.parse((result as { data: string }).data);
         }
         return null;
     }
 
     private async cacheData(symbol: string, timeComponents: CacheKey, data: KlineData[]): Promise<void> {
-        await this.db.run(
+        await this.withRetry(() => this.db.run(
             'INSERT OR REPLACE INTO kline_cache (symbol, interval, hour, day, month, year, minute, data, timestamp) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
             [symbol, timeComponents.interval, timeComponents.hour, timeComponents.day, timeComponents.month, timeComponents.year, timeComponents.minute, JSON.stringify(data), Date.now()]
-        );
+        ));
     }
 
     private parseKlineData(kline: any): KlineData {
@@ -129,7 +150,7 @@ export class BingXDataService {
         // Check cache first
         const cachedData = await this.getCachedData(normalizedSymbol, timeComponents);
         if (cachedData) {
-            console.log(`Returning cached data for ${normalizedSymbol} (${validatedInterval}) at ${timeComponents.hour}:${timeComponents.minute.toString().padStart(2, '0')} on ${timeComponents.day}/${timeComponents.month}/${timeComponents.year}`);
+            logger.info(`Returning cached data for ${normalizedSymbol} (${validatedInterval}) at ${timeComponents.hour}:${timeComponents.minute.toString().padStart(2, '0')} on ${timeComponents.day}/${timeComponents.month}/${timeComponents.year}`);
             return cachedData;
         }
 
@@ -148,10 +169,10 @@ export class BingXDataService {
             // Cache the data
             await this.cacheData(normalizedSymbol, timeComponents, klineData);
             
-            console.log(`Fetched and cached new data for ${normalizedSymbol} (${validatedInterval}) at ${timeComponents.hour}:${timeComponents.minute.toString().padStart(2, '0')} on ${timeComponents.day}/${timeComponents.month}/${timeComponents.year}`);
+            logger.info(`Fetched and cached new data for ${normalizedSymbol} (${validatedInterval}) at ${timeComponents.hour}:${timeComponents.minute.toString().padStart(2, '0')} on ${timeComponents.day}/${timeComponents.month}/${timeComponents.year}`);
             return klineData;
         } catch (error) {
-            console.error(`Error fetching data for ${normalizedSymbol} (${validatedInterval}):`, error);
+            logger.error(`Error fetching data for ${normalizedSymbol} (${validatedInterval}):`, error);
             throw error;
         }
     }
@@ -168,7 +189,7 @@ export class BingXDataService {
             const response = await this.apiClient.get<{ data: { lastPrice: string } }>(path, params);
             return parseFloat(response.data.lastPrice);
         } catch (error) {
-            console.error(`Error fetching price for ${normalizedSymbol}:`, error);
+            logger.error(`Error fetching price for ${normalizedSymbol}:`, error);
             throw error;
         }
     }
@@ -196,7 +217,7 @@ export class BingXDataService {
 
             return response.data;
         } catch (error) {
-            console.error(`Error fetching symbol info for ${normalizedSymbol}:`, error);
+            logger.error(`Error fetching symbol info for ${normalizedSymbol}:`, error);
             throw error;
         }
     }

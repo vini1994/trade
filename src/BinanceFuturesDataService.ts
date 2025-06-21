@@ -3,6 +3,7 @@ import sqlite3 from 'sqlite3';
 import { open } from 'sqlite';
 import * as path from 'path';
 import { KlineData, AllowedInterval } from './utils/types';
+import { logger } from './utils/logger';
 
 interface CacheKey {
     symbol: string;
@@ -69,22 +70,46 @@ export class BinanceFuturesDataService {
         };
     }
 
+    // Função utilitária para retry com delay exponencial
+    private async withRetry<T>(fn: () => Promise<T>, retries = 3, delayMs = 200): Promise<T> {
+        let lastError;
+        for (let i = 0; i < retries; i++) {
+            try {
+                return await fn();
+            } catch (error: any) {
+                if (error && error.code === 'SQLITE_BUSY') {
+                    lastError = error;
+                    if (i < retries - 1) {
+                        await new Promise(res => setTimeout(res, delayMs * Math.pow(2, i)));
+                        continue;
+                    }
+                }
+                throw error;
+            }
+        }
+        throw lastError;
+    }
+
     private async getCachedData(symbol: string, timeComponents: CacheKey): Promise<KlineData[] | null> {
-        const result = await this.db.get(
-            'SELECT data FROM futures_kline_cache WHERE symbol = ? AND interval = ? AND hour = ? AND minutes = ? AND day = ? AND month = ? AND year = ?',
-            [symbol, timeComponents.interval, timeComponents.hour, timeComponents.minutes, timeComponents.day, timeComponents.month, timeComponents.year]
+        const result = await this.withRetry(() =>
+            this.db.get(
+                'SELECT data FROM futures_kline_cache WHERE symbol = ? AND interval = ? AND hour = ? AND minutes = ? AND day = ? AND month = ? AND year = ?',
+                [symbol, timeComponents.interval, timeComponents.hour, timeComponents.minutes, timeComponents.day, timeComponents.month, timeComponents.year]
+            )
         );
 
-        if (result) {
-            return JSON.parse(result.data);
+        if (result && typeof (result as { data?: string }).data === 'string') {
+            return JSON.parse((result as { data: string }).data);
         }
         return null;
     }
 
     private async cacheData(symbol: string, timeComponents: CacheKey, data: KlineData[]): Promise<void> {
-        await this.db.run(
-            'INSERT OR REPLACE INTO futures_kline_cache (symbol, interval, hour, minutes, day, month, year, data, timestamp) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
-            [symbol, timeComponents.interval, timeComponents.hour, timeComponents.minutes, timeComponents.day, timeComponents.month, timeComponents.year, JSON.stringify(data), Date.now()]
+        await this.withRetry(() =>
+            this.db.run(
+                'INSERT OR REPLACE INTO futures_kline_cache (symbol, interval, hour, minutes, day, month, year, data, timestamp) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                [symbol, timeComponents.interval, timeComponents.hour, timeComponents.minutes, timeComponents.day, timeComponents.month, timeComponents.year, JSON.stringify(data), Date.now()]
+            )
         );
     }
 
@@ -115,7 +140,7 @@ export class BinanceFuturesDataService {
         // Check cache first
         const cachedData = await this.getCachedData(symbol, timeComponents);
         if (cachedData) {
-            console.log(`Returning cached futures data for ${symbol} (${interval}) at ${timeComponents.hour}:${timeComponents.minutes} on ${timeComponents.day}/${timeComponents.month}/${timeComponents.year}`);
+            logger.info(`Returning cached futures data for ${symbol} (${interval}) at ${timeComponents.hour}:${timeComponents.minutes} on ${timeComponents.day}/${timeComponents.month}/${timeComponents.year}`);
             return cachedData;
         }
 
@@ -134,10 +159,10 @@ export class BinanceFuturesDataService {
             // Cache the data
             await this.cacheData(symbol, timeComponents, klineData);
             
-            console.log(`Fetched and cached new futures data for ${symbol} (${interval}) at ${timeComponents.hour}:${timeComponents.minutes} on ${timeComponents.day}/${timeComponents.month}/${timeComponents.year}`);
+            logger.info(`Fetched and cached new futures data for ${symbol} (${interval}) at ${timeComponents.hour}:${timeComponents.minutes} on ${timeComponents.day}/${timeComponents.month}/${timeComponents.year}`);
             return klineData;
         } catch (error) {
-            console.error(`Error fetching futures data for ${symbol} (${interval}):`, error);
+            logger.error(`Error fetching futures data for ${symbol} (${interval}):`, error);
             throw error;
         }
     }
