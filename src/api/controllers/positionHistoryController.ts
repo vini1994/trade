@@ -38,19 +38,19 @@ export class PositionHistoryController {
                 endTs
             } = req.query;
 
-            // Buscar todas as posições sem paginação
+            // Fetch all positions without pagination
             const positions = await this.dbService.getPositionHistory(
                 symbol as string,
                 startTs ? parseInt(startTs as string) : undefined,
                 endTs ? parseInt(endTs as string) : undefined,
                 1,
-                100000 // Buscar um número muito alto para pegar todas as posições
+                100000 // Fetch a very high number to get all positions
             );
 
-            // Sempre incluir informações do trade que gerou cada posição
+            // Always include trade info that generated each position
             let positionsWithTradeInfo = await this.enrichPositionsWithTradeInfo(positions);
 
-            // Filtrar por setup_description se fornecido
+            // Filter by setup_description if provided
             if (setupDescription && setupDescription !== 'ALL') {
                 positionsWithTradeInfo = positionsWithTradeInfo.filter(position => 
                     position.tradeInfo?.found && 
@@ -88,7 +88,7 @@ export class PositionHistoryController {
             // Enrich positions with trade info
             let positionsWithTradeInfo = await this.enrichPositionsWithTradeInfo(positions);
 
-            // Filtrar por setup_description se fornecido
+            // Filter by setup_description if provided
             if (setupDescription && setupDescription !== 'ALL') {
                 positionsWithTradeInfo = positionsWithTradeInfo.filter(position => 
                     position.tradeInfo?.found && 
@@ -135,7 +135,7 @@ export class PositionHistoryController {
         try {
             const { positionId } = req.params;
 
-            // Buscar a posição específica sem paginação
+            // Fetch the specific position without pagination
             const positions = await this.dbService.getPositionHistory('ALL', undefined, undefined, 1, 100000);
             const position = positions.find(p => p.positionId === positionId);
 
@@ -185,35 +185,86 @@ export class PositionHistoryController {
             // Denormalize the position symbol for comparison with trades
             const denormalizedPositionSymbol = this.denormalizeSymbolBingX(position.symbol);
             
-            // Converter o timestamp de abertura da posição para Date
+            // Convert the position open timestamp to Date
             const positionOpenTime = new Date(position.openTime);
             
-            // Buscar trades que correspondam ao símbolo e lado da posição
-            // Usar uma janela de tempo de ±30 minutos para encontrar o trade correspondente
-            const timeWindow = 10 * 60 * 1000; // 30 minutos em millisegundos
+            // Fetch trades that match the symbol and side of the position
+            // Use a ±30 minute time window to find the corresponding trade
+            const timeWindow = 10 * 60 * 1000; // 30 minutes in milliseconds
             const startTime = new Date(positionOpenTime.getTime() - timeWindow);
             const endTime = new Date(positionOpenTime.getTime() + timeWindow);
 
-            // Buscar todos os trades para o símbolo
+            // Fetch all trades for the symbol
             const allTrades = await this.tradeDatabase.getAllTrades();
+
+            if (position.positionId){
+                // Filter trades by positionId
+                const matchingTrades = allTrades.filter((trade: any) => {
+                    return trade.positionId === position.positionId;
+                });
+                // If trades found, return the best match
+                if (matchingTrades.length > 0) {
+                    // If multiple trades found, choose the one closest to the position open date
+                    let bestMatch = matchingTrades[0];
+                    let smallestTimeDiff = Math.abs(new Date(bestMatch.createdAt).getTime() - positionOpenTime.getTime());
+
+                    for (const trade of matchingTrades) {
+                        const timeDiff = Math.abs(new Date(trade.createdAt).getTime() - positionOpenTime.getTime());
+                        if (timeDiff < smallestTimeDiff) {
+                            smallestTimeDiff = timeDiff;
+                            bestMatch = trade;
+                        }
+                    }
+
+                    return {
+                        found: true,
+                        source: 'trade',
+                        trade: {
+                            id: bestMatch.id,
+                            symbol: bestMatch.symbol,
+                            type: bestMatch.type,
+                            entry: bestMatch.entry,
+                            stop: bestMatch.stop,
+                            tp1: bestMatch.tp1,
+                            tp2: bestMatch.tp2,
+                            tp3: bestMatch.tp3,
+                            tp4: bestMatch.tp4,
+                            tp5: bestMatch.tp5,
+                            tp6: bestMatch.tp6,
+                            quantity: bestMatch.quantity,
+                            leverage: bestMatch.leverage,
+                            status: bestMatch.status,
+                            setup_description: bestMatch.setup_description,
+                            createdAt: bestMatch.createdAt,
+                            updatedAt: bestMatch.updatedAt,
+                            timeDifference: Math.round(smallestTimeDiff / 1000 / 60) // difference in minutes
+                        },
+                        message: `Found matching trade (ID: ${bestMatch.id}) created ${Math.round(smallestTimeDiff / 1000 / 60)} minutes ${new Date(bestMatch.createdAt) < positionOpenTime ? 'before' : 'after'} position opening`
+                    };
+                }
+
+
+            }
+
+
             
-            // Filtrar trades por símbolo e tipo (LONG/SHORT baseado no positionSide)
+            // Filter trades by symbol and type (LONG/SHORT based on positionSide)
             const matchingTrades = allTrades.filter((trade: any) => {
-                const tradeType = trade.type; // 'LONG' ou 'SHORT'
-                const positionSide = position.positionSide; // 'LONG' ou 'SHORT'
+                const tradeType = trade.type; // 'LONG' or 'SHORT'
+                const positionSide = position.positionSide; // 'LONG' or 'SHORT'
                 
-                // Verificar se o símbolo e o tipo correspondem (usando símbolo denormalizado)
+                // Check if symbol and type match (using denormalized symbol)
                 if (trade.symbol !== denormalizedPositionSymbol) return false;
                 if (tradeType !== positionSide) return false;
 
-                // Verificar se o trade foi criado dentro da janela de tempo
+                // Check if the trade was created within the time window
                 const tradeCreatedAt = new Date(trade.createdAt);
                 return tradeCreatedAt >= startTime && tradeCreatedAt <= endTime;
             });
 
-            // Se encontrou trades, retornar o melhor match
+            // If trades found, return the best match
             if (matchingTrades.length > 0) {
-                // Se encontrou múltiplos trades, escolher o mais próximo da data de abertura da posição
+                // If multiple trades found, choose the one closest to the position open date
                 let bestMatch = matchingTrades[0];
                 let smallestTimeDiff = Math.abs(new Date(bestMatch.createdAt).getTime() - positionOpenTime.getTime());
 
@@ -246,13 +297,13 @@ export class PositionHistoryController {
                         setup_description: bestMatch.setup_description,
                         createdAt: bestMatch.createdAt,
                         updatedAt: bestMatch.updatedAt,
-                        timeDifference: Math.round(smallestTimeDiff / 1000 / 60) // diferença em minutos
+                        timeDifference: Math.round(smallestTimeDiff / 1000 / 60) // difference in minutes
                     },
                     message: `Found matching trade (ID: ${bestMatch.id}) created ${Math.round(smallestTimeDiff / 1000 / 60)} minutes ${new Date(bestMatch.createdAt) < positionOpenTime ? 'before' : 'after'} position opening`
                 };
             }
 
-            // Se não encontrou trades, buscar no arquivo trades.json
+            // If no trades found, search in trades.json file
             const tradesJsonPath = path.join(__dirname, '../../../data/trades.json');
             
             if (!fs.existsSync(tradesJsonPath)) {
@@ -265,16 +316,16 @@ export class PositionHistoryController {
             const tradesJsonContent = fs.readFileSync(tradesJsonPath, 'utf8');
             const tradesFromJson = JSON.parse(tradesJsonContent);
 
-            // Filtrar trades do JSON por símbolo, tipo e que tenham setup_description
+            // Filter trades from JSON by symbol, type, and that have setup_description
             const matchingTradesFromJson = tradesFromJson.filter((trade: any) => {
-                const tradeType = trade.type; // 'LONG' ou 'SHORT'
-                const positionSide = position.positionSide; // 'LONG' ou 'SHORT'
+                const tradeType = trade.type; // 'LONG' or 'SHORT'
+                const positionSide = position.positionSide; // 'LONG' or 'SHORT'
                 
-                // Verificar se o símbolo e o tipo correspondem (usando símbolo denormalizado)
+                // Check if symbol and type match (using denormalized symbol)
                 if (trade.symbol !== denormalizedPositionSymbol) return false;
                 if (tradeType !== positionSide) return false;
                 
-                // Verificar se tem setup_description
+                // Check if has setup_description
                 if (!trade.setup_description || trade.setup_description.trim() === '') return false;
 
                 return true;
@@ -287,14 +338,14 @@ export class PositionHistoryController {
                 };
             }
 
-            // Se encontrou múltiplos trades no JSON, escolher o primeiro (não há timestamp para comparar)
+            // If multiple trades found in JSON, choose the first one (no timestamp to compare)
             const bestTradeFromJson = matchingTradesFromJson[0];
 
             return {
                 found: true,
                 source: 'trades.json',
                 trade: {
-                    id: null, // Trades do JSON não têm ID de trade
+                    id: null, // Trades from JSON do not have trade ID
                     symbol: bestTradeFromJson.symbol,
                     type: bestTradeFromJson.type,
                     entry: bestTradeFromJson.entry,
@@ -305,17 +356,17 @@ export class PositionHistoryController {
                     tp4: bestTradeFromJson.tp4,
                     tp5: bestTradeFromJson.tp5,
                     tp6: bestTradeFromJson.tp6,
-                    quantity: null, // Trades do JSON não têm quantity
-                    leverage: null, // Trades do JSON não têm leverage
-                    status: 'SETUP', // Status especial para setups do JSON
+                    quantity: null, // Trades from JSON do not have quantity
+                    leverage: null, // Trades from JSON do not have leverage
+                    status: 'SETUP', // Special status for setups from JSON
                     setup_description: bestTradeFromJson.setup_description,
                     interval: bestTradeFromJson.interval,
                     url_analysis: bestTradeFromJson.url_analysis,
                     volume_required: bestTradeFromJson.volume_required,
                     volume_adds_margin: bestTradeFromJson.volume_adds_margin,
-                    createdAt: null, // Trades do JSON não têm timestamp
+                    createdAt: null, // Trades from JSON do not have timestamp
                     updatedAt: null,
-                    timeDifference: null, // Não há timestamp para comparar
+                    timeDifference: null, // No timestamp to compare
                     is_valid: true,
                     is_warning: false,
                     execution_error: null
@@ -590,7 +641,7 @@ export class PositionHistoryController {
             // Enrich positions with trade info
             let positionsWithTradeInfo = await this.enrichPositionsWithTradeInfo(positions);
 
-            // Filtrar por setup_description se fornecido
+            // Filter by setup_description if provided
             if (setupDescription && setupDescription !== 'ALL') {
                 positionsWithTradeInfo = positionsWithTradeInfo.filter(position => 
                     position.tradeInfo?.found && 
@@ -901,7 +952,7 @@ export class PositionHistoryController {
 
     public async getAvailableSetupDescriptions(req: Request, res: Response): Promise<void> {
         try {
-            // Buscar todos os trades para extrair setup descriptions únicos
+            // Fetch all trades to extract unique setup descriptions
             const allTrades = await this.tradeDatabase.getAllTrades();
             
             const setupDescriptions = [...new Set(allTrades.map(trade => trade.setup_description).filter(Boolean))].sort();
