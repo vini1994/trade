@@ -37,6 +37,7 @@ export interface Trade {
     url_analysis?: string | null;
     isLoading?: boolean;
     isLoadingTP1?: boolean;
+    positionId?: string | null;
 }
 
 export interface BingXOrderResponse {
@@ -75,6 +76,7 @@ export interface TradeRecord extends Trade {
     interval: AllowedInterval | null;
     createdAt: string;
     updatedAt: string;
+    positionId?: string | null;
 }
 
 export interface TradeExecutionResult {
@@ -116,6 +118,7 @@ export interface OrderDetails {
 }
 
 export interface Position {
+    positionId: string;
     symbol: string;
     positionSide: 'LONG' | 'SHORT';
     positionAmt: string;
