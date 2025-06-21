@@ -51,9 +51,21 @@ export class TradeDatabase {
                 setup_description TEXT,
                 volume_required BOOLEAN NOT NULL DEFAULT 0,
                 createdAt TEXT NOT NULL,
-                updatedAt TEXT NOT NULL
+                updatedAt TEXT NOT NULL,
+                positionId TEXT
             )
         `);
+
+        // Adiciona a coluna positionId se não existir
+        try {
+            const columns = await this.db.all("PRAGMA table_info(trades)");
+            const hasPositionId = columns.some((col: any) => col.name === 'positionId');
+            if (!hasPositionId) {
+                await this.db.exec('ALTER TABLE trades ADD COLUMN positionId TEXT');
+            }
+        } catch (error) {
+            // Se der erro (ex: coluna já existe), ignora
+        }
 
         await this.db.exec(`
             CREATE TABLE IF NOT EXISTS order_details (
@@ -163,8 +175,9 @@ export class TradeDatabase {
                 setup_description,
                 volume_required,
                 createdAt,
-                updatedAt
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                updatedAt,
+                positionId
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `, [
             trade.symbol,
             trade.type,
@@ -193,7 +206,8 @@ export class TradeDatabase {
             trade.setup_description,
             trade.volume_required ? 1 : 0,
             now,
-            now
+            now,
+            trade.positionId || null
         ]);
 
         return this.getTradeById(result.lastID);
@@ -243,45 +257,55 @@ export class TradeDatabase {
         if ('entryOrderId' in orderIds) {
             if (orderIds.entryOrderId) {
                 updates.push('entryOrderId = ?');
-                values.push(BigInt(orderIds.entryOrderId).toString);
+                values.push(BigInt(orderIds.entryOrderId).toString());
             }
         }
         if ('stopOrderId' in orderIds) {
             if (orderIds.stopOrderId) {
                 updates.push('stopOrderId = ?');
-                values.push(BigInt(orderIds.stopOrderId).toString);
+                values.push(BigInt(orderIds.stopOrderId).toString());
             }
         }
         if ('tp1OrderId' in orderIds) {
             if (orderIds.tp1OrderId) {
                 updates.push('tp1OrderId = ?');
-                values.push(BigInt(orderIds.tp1OrderId).toString);
+                values.push(BigInt(orderIds.tp1OrderId).toString());
             }
         }
         if ('tp2OrderId' in orderIds) {
-            updates.push('tp2OrderId = ?');
-            values.push(orderIds.tp2OrderId);
+            if (orderIds.tp2OrderId) {
+                updates.push('tp2OrderId = ?');
+                values.push(BigInt(orderIds.tp2OrderId).toString());
+            }
         }
         if ('tp3OrderId' in orderIds) {
-            updates.push('tp3OrderId = ?');
-            values.push(orderIds.tp3OrderId);
+            if (orderIds.tp3OrderId) {
+               updates.push('tp3OrderId = ?');
+                values.push(BigInt(orderIds.tp3OrderId).toString());
+            }
         }
         if ('tp4OrderId' in orderIds) {
-            updates.push('tp4OrderId = ?');
-            values.push(orderIds.tp4OrderId);
+            if (orderIds.tp4OrderId) {
+                updates.push('tp4OrderId = ?');
+                values.push(BigInt(orderIds.tp4OrderId).toString());
+            }
         }
         if ('tp5OrderId' in orderIds) {
-            updates.push('tp5OrderId = ?');
-            values.push(orderIds.tp5OrderId);
+            if (orderIds.tp5OrderId) {
+                updates.push('tp5OrderId = ?');
+                values.push(BigInt(orderIds.tp5OrderId).toString());
+            }
         }
         if ('tp6OrderId' in orderIds) {
-            updates.push('tp6OrderId = ?');
-            values.push(orderIds.tp6OrderId);
+            if (orderIds.tp6OrderId) {
+                updates.push('tp6OrderId = ?');
+                values.push(BigInt(orderIds.tp6OrderId).toString());
+            }
         }
         if ('trailingStopOrderId' in orderIds) {
             if (orderIds.trailingStopOrderId) {
                 updates.push('trailingStopOrderId = ?');
-                values.push(BigInt(orderIds.trailingStopOrderId).toString);
+                values.push(BigInt(orderIds.trailingStopOrderId).toString());
             }
 
         }
@@ -527,5 +551,13 @@ export class TradeDatabase {
         `);
         
         return result.map((row: { symbol: string }) => row.symbol);
+    }
+
+    public async updatePositionId(id: number, positionId: string): Promise<void> {
+        const now = new Date().toISOString();
+        await this.db.run(
+            'UPDATE trades SET positionId = ?, updatedAt = ? WHERE id = ?',
+            [positionId, now, id]
+        );
     }
 } 
