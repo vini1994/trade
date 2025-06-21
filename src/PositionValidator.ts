@@ -25,13 +25,11 @@ export class PositionValidator {
         try {
             const response = await this.apiClient.get<BingXPositionResponse>(path, params);
             if (response.code !== 0) {
-                console.warn(`API returned non-zero code: ${response.code}, message: ${response.msg}`);
-                return [];
+                throw new Error(`API returned non-zero code: ${response.code}, message: ${response.msg}`);
             }
             return response.data || [];
         } catch (error) {
-            console.error('Error fetching positions:', error);
-            return [];
+            throw new Error('Error fetching positions: ' + (error instanceof Error ? error.message : error));
         }
     }
 

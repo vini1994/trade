@@ -91,7 +91,7 @@ export class TradeOrderProcessor {
     private async cancelAndCloseTrade(trade: TradeRecord): Promise<void> {
         try {
             // Collect all active order IDs that need to be cancelled
-            /*
+            
             const orderIds = [
                 trade.entryOrderId,
                 trade.stopOrderId,
@@ -104,8 +104,11 @@ export class TradeOrderProcessor {
                 trade.trailingStopOrderId
             ].filter(id => id !== null);
 
+            // Adaptar para array de objetos {orderId, symbol}
+            const orderInfos = orderIds.map(orderId => ({ orderId, symbol: trade.symbol }));
+
             // Get status for all orders
-            const orderStatuses = await this.orderStatusChecker.getMultipleOrderStatus(orderIds);
+            const orderStatuses = await this.getOrderStatusesWithDelay(orderInfos, 1000);
 
             // Cancel all active orders
             for (const [orderId, status] of orderStatuses) {
@@ -114,7 +117,7 @@ export class TradeOrderProcessor {
                     await this.orderExecutor.cancelOrder(trade.symbol, orderId);
                 }
             }
-            */
+            
             // Mark trade as closed
             await this.tradeDatabase.updateTradeStatus(trade.id, 'CLOSED');
             console.log(`Trade ${trade.id} marked as CLOSED due to no monitored position`);
@@ -139,11 +142,26 @@ export class TradeOrderProcessor {
                 trade.trailingStopOrderId
             ];
             
-            const orderIds: string[] = allOrderIds
-                .filter((id): id is string => id !== null && id !== 'pending');
+            const orderInfos = allOrderIds
+                .filter((id): id is string => {
+                    if (id === null || id === 'pending') return false;
+                    // Check if id is a valid bigint with at least 16 digits
+                    try {
+                        const idStr = String(id);
+                        // Only digits, at least 16 digits
+                        if (/^\d{16,}$/.test(idStr)) {
+                            BigInt(idStr); // Will throw if not valid
+                            return true;
+                        }
+                    } catch {
+                        return false;
+                    }
+                    return false;
+                })
+                .map(orderId => ({ orderId, symbol: trade.symbol }));
 
             // Get status for all orders
-            const orderStatuses = await this.orderStatusChecker.getMultipleOrderStatus(orderIds);
+            const orderStatuses = await this.getOrderStatusesWithDelay(orderInfos, 1000);
 
             // Process each order status
             for (const [orderId, status] of orderStatuses) {
@@ -166,7 +184,7 @@ export class TradeOrderProcessor {
                 }
 
                 // Get detailed status information
-                const details = await this.orderStatusChecker.getOrderStatusWithDetails(orderId);
+                const details = await this.orderStatusChecker.getOrderStatusWithDetails(orderId, trade.symbol);
                 console.log(`Order ${orderId} details:`, details);
 
                 // Calculate PnL, fee, and result
@@ -267,5 +285,20 @@ export class TradeOrderProcessor {
         } catch (error) {
             console.error(`Error processing trade ${trade.id}:`, error);
         }
+    }
+
+    private async getOrderStatusesWithDelay(orderInfos: {orderId: string, symbol: string}[], delayMs: number = 1000): Promise<Map<string, any>> {
+        const statuses = new Map<string, any>();
+        for (const {orderId, symbol} of orderInfos) {
+            try {
+                const status = await this.orderStatusChecker.getOrderStatus(orderId, symbol);
+                statuses.set(orderId, status);
+            } catch (error) {
+                console.error(`Error fetching status for order ${orderId}:`, error);
+            }
+            // Delay entre as consultas
+            await new Promise(resolve => setTimeout(resolve, delayMs));
+        }
+        return statuses;
     }
 } 

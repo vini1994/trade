@@ -1,5 +1,6 @@
 import { BingXApiClient } from './services/BingXApiClient';
 import * as dotenv from 'dotenv';
+import { normalizeSymbolBingX } from './utils/bingxUtils';
 
 // Load environment variables
 dotenv.config();
@@ -34,11 +35,21 @@ export class OrderStatusChecker {
         this.apiClient = new BingXApiClient();
     }
 
-    public async getOrderStatus(orderId: string): Promise<OrderStatus> {
+    private isValidBigInt(value: string): boolean {
+        // Verifica se é um número inteiro válido para BigInt
+        return /^\d{16,}$/.test(value);
+    }
+
+    public async getOrderStatus(orderId: string, symbol: string): Promise<OrderStatus> {
+        if (!this.isValidBigInt(orderId)) {
+            throw new Error(`orderId inválido para BigInt: ${orderId}`);
+        }
         const path = '/openApi/swap/v2/trade/order';
         const _orderId = BigInt(orderId)
+        const normalizedSymbol = normalizeSymbolBingX(symbol);
         const params = {
-            orderId: _orderId
+            orderId: _orderId,
+            symbol: normalizedSymbol
         };
 
         try {
@@ -55,7 +66,7 @@ export class OrderStatusChecker {
         }
     }
 
-    public async getOrderStatusWithDetails(orderId: string): Promise<{
+    public async getOrderStatusWithDetails(orderId: string, symbol: string): Promise<{
         status: OrderStatus;
         isFilled: boolean;
         isCanceled: boolean;
@@ -67,7 +78,7 @@ export class OrderStatusChecker {
             updateTime: Date;
         };
     }> {
-        const orderStatus = await this.getOrderStatus(orderId);
+        const orderStatus = await this.getOrderStatus(orderId, symbol);
 
         return {
             status: orderStatus,
@@ -77,19 +88,19 @@ export class OrderStatusChecker {
             executionDetails: {
                 executedQuantity: parseFloat(orderStatus.executedQty),
                 averagePrice: parseFloat(orderStatus.avgPrice),
-                createTime: new Date(orderStatus.createTime),
-                updateTime: new Date(orderStatus.updateTime)
+                createTime: new Date(),
+                updateTime: new Date()
             }
         };
     }
 
-    public async getMultipleOrderStatus(orderIds: string[]): Promise<Map<string, OrderStatus>> {
+    public async getMultipleOrderStatus(orderInfos: { orderId: string, symbol: string }[]): Promise<Map<string, OrderStatus>> {
         const orderStatuses = new Map<string, OrderStatus>();
         
         await Promise.all(
-            orderIds.map(async (orderId) => {
+            orderInfos.map(async ({ orderId, symbol }) => {
                 try {
-                    const status = await this.getOrderStatus(orderId);
+                    const status = await this.getOrderStatus(orderId, symbol);
                     orderStatuses.set(orderId, status);
                 } catch (error) {
                     console.error(`Error fetching status for order ${orderId}:`, error);

@@ -219,12 +219,17 @@ export class OrderMonitor {
                     // Add 1 second delay before checking position
                     await new Promise(resolve => setTimeout(resolve, 1000));
                     
-                    // Check for existing position
-                    const { hasPosition: hasPositionRevalidate, message } = await this.positionValidator.hasOpenPosition(order.symbol, order.positionSide);
-                    if ((!hasPositionRevalidate) && (!message.toLocaleLowerCase().includes('erro'))) {             
-                        console.log(`Found orphaned order for ${order.symbol} ${order.positionSide} (${order.type})`);
-                        await this.cancelOrder(order);
-                    }
+                    try {
+                        // Check for existing position
+                        const { hasPosition: hasPositionRevalidate, message } = await this.positionValidator.hasOpenPosition(order.symbol, order.positionSide);
+                        if ((!hasPositionRevalidate) && (!message.toLowerCase().includes('error'))) {             
+                            console.log(`Found orphaned order for ${order.symbol} ${order.positionSide} (${order.type})`);
+                            await this.cancelOrder(order);
+                        }
+                    } catch (error) {
+                        console.error('Error cancelling orphaned orders:', error);
+                    }                    
+
                 }
             }
         } catch (error) {

@@ -147,8 +147,6 @@ export class PositionMonitor {
                 updateTime: Date.now()
             };
 
-            console.log(`Created new stop loss order for ${position.symbol} ${position.positionSide} at ${initialStopPrice}`);
-
             // Send notification about the new stop loss order
             await this.notificationService.sendTradeNotification({
                 symbol: position.symbol,
@@ -451,9 +449,14 @@ export class PositionMonitor {
 
     public async updatePositions(): Promise<void> {
         try {
-            // Get all open positions from BingX
-            const positions = await this.positionValidator.getPositions('ALL');
-            
+            let positions:Position[] = [];
+            try{
+                // Get all open positions from BingX
+                positions = await this.positionValidator.getPositions('ALL');
+            }catch (error) {
+                console.error('Error updating positions:', error);
+            }
+
             // Update open orders first
             await this.orderMonitor.updateOpenOrders();
             

@@ -425,6 +425,9 @@ export class BingXOrderExecutor {
                 tradeRecord.id
             );
 
+            // Add 1 second delay before checking position
+            await new Promise(resolve => setTimeout(resolve, 1000));
+
             const { hasPosition: hasPositionPost, position, message: messagePost } = await this.positionValidator.hasOpenPosition(trade.symbol, trade.type);
             
             if (!hasPositionPost) {
@@ -432,6 +435,11 @@ export class BingXOrderExecutor {
             }
             if (parseFloat(position?.positionAmt || '0') !== 0) {
                 quantity = parseFloat(position?.positionAmt || '0')
+            }
+
+            // Update trade record with positionId if available
+            if (position) {
+                await this.tradeDatabase.updatePositionId(tradeRecord.id, position.positionId);
             }
             
             // Place stop loss order (LIMIT)
