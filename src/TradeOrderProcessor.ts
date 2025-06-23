@@ -185,7 +185,6 @@ export class TradeOrderProcessor {
 
                 // Get detailed status information
                 const details = await this.orderStatusChecker.getOrderStatusWithDetails(orderId, trade.symbol);
-                console.log(`Order ${orderId} details:`, details);
 
                 // Calculate PnL, fee, and result
                 let pnl = 0;

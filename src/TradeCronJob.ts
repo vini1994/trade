@@ -154,7 +154,7 @@ export class TradeCronJob {
                         volume_adds_margin: trade.volume_adds_margin,
                         setup_description: trade.setup_description,
                         volume_required: trade.volume_required,
-                        modify_tp1: false,
+                        modify_tp1: process.env.MODIFY_TP1 === 'true',
                         interval: trade.interval
                     });
 

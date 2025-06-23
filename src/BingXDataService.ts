@@ -25,7 +25,6 @@ interface CacheKey {
 export class BingXDataService {
     private readonly apiClient: BingXApiClient;
     private db: any;
-    private readonly validIntervals: AllowedInterval[] = ['5m', '15m', '1h'];
 
     constructor() {
         // Initialize without any config since we're using environment variables
@@ -54,13 +53,6 @@ export class BingXDataService {
                 PRIMARY KEY (symbol, interval, hour, day, month, year, minute)
             )
         `);
-    }
-
-    private validateInterval(interval: AllowedInterval): AllowedInterval {
-        if (!this.validIntervals.includes(interval as AllowedInterval)) {
-            throw new Error(`Invalid interval. Must be one of: ${this.validIntervals.join(', ')}`);
-        }
-        return interval as AllowedInterval;
     }
 
     private getCurrentTimeComponents(interval: AllowedInterval): CacheKey {
@@ -142,24 +134,25 @@ export class BingXDataService {
         };
     }
 
-    public async getKlineData(symbol: string, interval: AllowedInterval = '1h'): Promise<KlineData[]> {
+    public async getKlineData(symbol: string, interval: AllowedInterval = '1h', limit: number = 56, noCache: boolean = false): Promise<KlineData[]> {
         const normalizedSymbol = normalizeSymbolBingX(symbol);
-        const validatedInterval = this.validateInterval(interval);
-        const timeComponents = this.getCurrentTimeComponents(validatedInterval);
+        const timeComponents = this.getCurrentTimeComponents(interval);
         
-        // Check cache first
-        const cachedData = await this.getCachedData(normalizedSymbol, timeComponents);
-        if (cachedData) {
-            logger.info(`Returning cached data for ${normalizedSymbol} (${validatedInterval}) at ${timeComponents.hour}:${timeComponents.minute.toString().padStart(2, '0')} on ${timeComponents.day}/${timeComponents.month}/${timeComponents.year}`);
-            return cachedData;
+        // Check cache first, unless noCache é true
+        if (!noCache) {
+            const cachedData = await this.getCachedData(normalizedSymbol, timeComponents);
+            if (cachedData) {
+                logger.info(`Returning cached data for ${normalizedSymbol} (${interval}) at ${timeComponents.hour}:${timeComponents.minute.toString().padStart(2, '0')} on ${timeComponents.day}/${timeComponents.month}/${timeComponents.year}`);
+                return cachedData.slice(0, limit);
+            }
         }
 
         try {
             const path = '/openApi/swap/v3/quote/klines';
             const params = {
                 symbol: normalizedSymbol,
-                interval: validatedInterval,
-                limit: validatedInterval === '1h' ? 56 : 100, // More data points for smaller intervals
+                interval: interval,
+                limit: limit, // More data points for smaller intervals
                 timestamp: Date.now().toString()
             };
 
@@ -167,12 +160,14 @@ export class BingXDataService {
             const klineData = response.data.map(this.parseKlineData);
             
             // Cache the data
-            await this.cacheData(normalizedSymbol, timeComponents, klineData);
+            if (!noCache) {
+                await this.cacheData(normalizedSymbol, timeComponents, klineData);
+            }
             
-            logger.info(`Fetched and cached new data for ${normalizedSymbol} (${validatedInterval}) at ${timeComponents.hour}:${timeComponents.minute.toString().padStart(2, '0')} on ${timeComponents.day}/${timeComponents.month}/${timeComponents.year}`);
-            return klineData;
+            logger.info(`Fetched and cached new data for ${normalizedSymbol} (${interval}) at ${timeComponents.hour}:${timeComponents.minute.toString().padStart(2, '0')} on ${timeComponents.day}/${timeComponents.month}/${timeComponents.year}`);
+            return klineData.slice(0, limit);
         } catch (error) {
-            logger.error(`Error fetching data for ${normalizedSymbol} (${validatedInterval}):`, error);
+            logger.error(`Error fetching data for ${normalizedSymbol} (${interval}):`, error);
             throw error;
         }
     }

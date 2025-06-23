@@ -18,7 +18,6 @@ interface CacheKey {
 export class BinanceFuturesDataService {
     private readonly baseUrl: string = 'https://fapi.binance.com/fapi/v1';
     private db: any;
-    private readonly validIntervals: AllowedInterval[] = ['5m', '15m', '1h'];
 
     constructor() {
         this.initializeDatabase();
@@ -129,19 +128,18 @@ export class BinanceFuturesDataService {
         };
     }
 
-    public async getKlineData(symbol: string, interval: AllowedInterval = '1h'): Promise<KlineData[]> {
-        if (!this.validIntervals.includes(interval)) {
-            throw new Error(`Invalid interval. Must be one of: ${this.validIntervals.join(', ')}`);
-        }
+    public async getKlineData(symbol: string, interval: AllowedInterval = '1h', limit: number = 56, noCache: boolean = false): Promise<KlineData[]> {
 
         const timeComponents = this.getCurrentTimeComponents(interval);
         timeComponents.symbol = symbol;
         
-        // Check cache first
-        const cachedData = await this.getCachedData(symbol, timeComponents);
-        if (cachedData) {
-            logger.info(`Returning cached futures data for ${symbol} (${interval}) at ${timeComponents.hour}:${timeComponents.minutes} on ${timeComponents.day}/${timeComponents.month}/${timeComponents.year}`);
-            return cachedData;
+        // Check cache first, unless noCache is true
+        if (!noCache) {
+            const cachedData = await this.getCachedData(symbol, timeComponents);
+            if (cachedData) {
+                logger.info(`Returning cached futures data for ${symbol} (${interval}) at ${timeComponents.hour}:${timeComponents.minutes} on ${timeComponents.day}/${timeComponents.month}/${timeComponents.year}`);
+                return cachedData.slice(0, limit);
+            }
         }
 
         try {
@@ -150,17 +148,19 @@ export class BinanceFuturesDataService {
                     pair: symbol,
                     contractType: 'PERPETUAL',
                     interval: interval,
-                    limit: 56
+                    limit: limit
                 }
             });
 
             const klineData = response.data.map(this.parseKlineData);
             
             // Cache the data
-            await this.cacheData(symbol, timeComponents, klineData);
+            if (!noCache) {
+                await this.cacheData(symbol, timeComponents, klineData);
+            }
             
             logger.info(`Fetched and cached new futures data for ${symbol} (${interval}) at ${timeComponents.hour}:${timeComponents.minutes} on ${timeComponents.day}/${timeComponents.month}/${timeComponents.year}`);
-            return klineData;
+            return klineData.slice(0, limit);
         } catch (error) {
             logger.error(`Error fetching futures data for ${symbol} (${interval}):`, error);
             throw error;

@@ -6,6 +6,7 @@ import { createServer } from 'http';
 import tradeRoutes from './routes/tradeRoutes';
 import notificationRoutes from './routes/notificationRoutes';
 import positionHistoryRoutes from './routes/positionHistoryRoutes';
+import takeProfitRoutes from './routes/takeProfitRoutes';
 
 const app = express();
 const server = createServer(app);
@@ -39,6 +40,7 @@ app.use(express.json());
 app.use('/api', tradeRoutes);
 app.use('/api', notificationRoutes);
 app.use('/api', positionHistoryRoutes);
+app.use('/api', takeProfitRoutes);
 
 // Notification endpoint
 app.post('/api/notification', (req, res) => {
@@ -53,6 +55,7 @@ app.post('/api/notification', (req, res) => {
 
   res.json({ success: true, message: 'Notification broadcasted' });
 });
+
 
 // Serve static files in production
 if (process.env.NODE_ENV === 'production') {

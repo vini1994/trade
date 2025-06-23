@@ -18,14 +18,19 @@ interface OrderStatus {
     status: string;
     executedQty: string;
     avgPrice: string;
-    createTime: number;
+    time: number;
     updateTime: number;
 }
+
+interface Order {
+    order: OrderStatus;
+}
+
 
 interface BingXOrderStatusResponse {
     code: number;
     msg: string;
-    data: OrderStatus;
+    data: Order;
 }
 
 export class OrderStatusChecker {
@@ -40,7 +45,7 @@ export class OrderStatusChecker {
         return /^\d{16,}$/.test(value);
     }
 
-    public async getOrderStatus(orderId: string, symbol: string): Promise<OrderStatus> {
+    public async getOrderStatus(orderId: string, symbol: string): Promise<Order> {
         if (!this.isValidBigInt(orderId)) {
             throw new Error(`orderId inválido para BigInt: ${orderId}`);
         }
@@ -81,15 +86,15 @@ export class OrderStatusChecker {
         const orderStatus = await this.getOrderStatus(orderId, symbol);
 
         return {
-            status: orderStatus,
-            isFilled: orderStatus.status === 'FILLED',
-            isCanceled: orderStatus.status === 'CANCELED',
-            isOpen: orderStatus.status === 'NEW' || orderStatus.status === 'PARTIALLY_FILLED',
+            status: orderStatus.order,
+            isFilled: orderStatus.order.status === 'FILLED',
+            isCanceled: orderStatus.order.status === 'CANCELED',
+            isOpen: orderStatus.order.status === 'NEW' || orderStatus.order.status === 'PARTIALLY_FILLED',
             executionDetails: {
-                executedQuantity: parseFloat(orderStatus.executedQty),
-                averagePrice: parseFloat(orderStatus.avgPrice),
-                createTime: new Date(),
-                updateTime: new Date()
+                executedQuantity: parseFloat(orderStatus.order.executedQty),
+                averagePrice: parseFloat(orderStatus.order.avgPrice),
+                createTime: new Date(orderStatus.order.time),
+                updateTime: new Date(orderStatus.order.updateTime)
             }
         };
     }
@@ -101,7 +106,7 @@ export class OrderStatusChecker {
             orderInfos.map(async ({ orderId, symbol }) => {
                 try {
                     const status = await this.getOrderStatus(orderId, symbol);
-                    orderStatuses.set(orderId, status);
+                    orderStatuses.set(orderId, status.order);
                 } catch (error) {
                     console.error(`Error fetching status for order ${orderId}:`, error);
                     //orderStatuses.set(orderId, null);
