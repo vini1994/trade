@@ -62,6 +62,13 @@
               required
             />
           </div>
+          <div class="mb-3 text-end">
+            <button type="button" class="btn btn-outline-info" @click="suggestTakeProfits" :disabled="loadingSuggest">
+              <span v-if="loadingSuggest" class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>
+              {{ suggestButtonLabel }}
+            </button>
+            <span v-if="suggestError" class="text-danger ms-2">{{ suggestError }}</span>
+          </div>
           <div class="mb-3">
             <label class="form-label">TP1</label>
             <input
@@ -218,6 +225,22 @@ const pairUpperCase = computed({
 const isEditing = computed(() => route.params.id !== undefined)
 
 const errorMessage = ref('')
+const loadingSuggest = ref(false)
+const suggestError = ref('')
+
+const suggestButtonLabel = computed(() => {
+  if (loadingSuggest.value) return 'Suggesting...';
+  switch (tradeData.value.interval) {
+    case '1h':
+      return 'Suggest TakeProfit 1D';
+    case '15m':
+      return 'Suggest TakeProfit 4h';
+    case '5m':
+      return 'Suggest TakeProfit 1h';
+    default:
+      return 'Suggest TakeProfits';
+  }
+});
 
 // Load trade data if editing
 onMounted(async () => {
@@ -258,6 +281,40 @@ const saveTrade = async () => {
   } catch (error) {
     console.error('Failed to save trade:', error)
     errorMessage.value = error instanceof Error ? error.message : 'Failed to save trade'
+  }
+}
+
+const suggestTakeProfits = async () => {
+  suggestError.value = ''
+  loadingSuggest.value = true
+  try {
+    const { symbol, type, entry, stop, interval } = tradeData.value
+    if (!symbol || !type || !entry || !stop) {
+      suggestError.value = 'Fill in symbol, type, entry and stop.'
+      loadingSuggest.value = false
+      return
+    }
+    const response = await fetch('/api/takeprofit', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ symbol, side: type, entry, stop, interval })
+    })
+    if (!response.ok) {
+      const error = await response.json()
+      throw new Error(error.error || 'Error suggesting takeprofits')
+    }
+    const data = await response.json()
+    const tps = data.takeProfits || []
+    tradeData.value.tp1 = tps[0] ?? null
+    tradeData.value.tp2 = tps[1] ?? null
+    tradeData.value.tp3 = tps[2] ?? null
+    tradeData.value.tp4 = tps[3] ?? null
+    tradeData.value.tp5 = tps[4] ?? null
+    tradeData.value.tp6 = tps[5] ?? null
+  } catch (error) {
+    suggestError.value = error instanceof Error ? error.message : 'Error suggesting takeprofits'
+  } finally {
+    loadingSuggest.value = false
   }
 }
 </script> 
