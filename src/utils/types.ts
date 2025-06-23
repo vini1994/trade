@@ -15,7 +15,7 @@ export interface KlineData {
     takerBuyQuoteAssetVolume: string;
 }
 
-export type AllowedInterval = '5m' | '15m' | '1h' | null;
+export type AllowedInterval = '5m' | '15m' | '1h' | '4h' | '1d' | null;
 export type TradeType = 'LONG' | 'SHORT';
 
 export interface Trade {
@@ -227,4 +227,13 @@ export interface BingXPositionHistoryResponse {
     data: {
         positionHistory: PositionHistory[];
     }
+}
+
+export interface Zone {
+    type: 'ORDER_BLOCK' | 'FVG';
+    candleIndex: number;
+    price: number;
+    candle: KlineData;
+    mitigated: boolean;
+    details?: any;
 } 
