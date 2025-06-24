@@ -260,16 +260,27 @@ onMounted(async () => {
   }
 })
 
+const sanitizeTradeData = (data: Record<string, any>) => {
+  const sanitized: Record<string, any> = { ...data };
+  for (const key in sanitized) {
+    if (typeof sanitized[key] === 'string' && sanitized[key].trim() === '') {
+      sanitized[key] = null;
+    }
+  }
+  return sanitized;
+}
+
 const saveTrade = async () => {
   try {
     errorMessage.value = ''
     const url = isEditing.value ? `/api/trades/${route.params.id}` : '/api/trades'
     const method = isEditing.value ? 'PUT' : 'POST'
     
+    const sanitizedData = sanitizeTradeData(tradeData.value)
     const response = await fetch(url, {
       method,
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(tradeData.value)
+      body: JSON.stringify(sanitizedData)
     })
 
     if (!response.ok) {
