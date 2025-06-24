@@ -221,6 +221,36 @@ export interface PositionHistory {
     closeTime: number;
 }
 
+export interface PositionHistory {
+    symbol: string;
+    positionId: string;
+    positionSide: string;
+    isolated: boolean;
+    closeAllPositions: boolean;
+    positionAmt: string;
+    closePositionAmt: string;
+    realisedProfit: string;
+    netProfit: string;
+    avgClosePrice: number;
+    avgPrice: string;
+    leverage: number;
+    positionCommission: string;
+    totalFunding: string;
+    openTime: number;
+    updateTime: number;
+    closeTime: number;
+    tradeInfo: TradeInfo | null;
+}
+
+export interface TradeInfo{
+    found: boolean;
+    source: string | null;
+    trade: TradeRecord | null; 
+    timeDifference: number | null;
+    message: string;
+    error: string | null;
+}
+
 export interface BingXPositionHistoryResponse {
     code: number;
     msg: string;

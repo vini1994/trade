@@ -22,13 +22,9 @@ export class PositionHistory {
 
     constructor() {
         this.apiClient = new BingXApiClient();
-        this.dbService = DatabasePositionHistoryService.getInstance();
-        this.initialize();
+        this.dbService = new DatabasePositionHistoryService();
     }
 
-    private async initialize(): Promise<void> {
-        await this.dbService.initialize();
-    }
 
     /**
      * Helper function to get the effective close time, using updateTime as fallback

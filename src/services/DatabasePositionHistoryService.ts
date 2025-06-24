@@ -5,19 +5,13 @@ import * as path from 'path';
 
 export class DatabasePositionHistoryService {
     private db: Database | null = null;
-    private static instance: DatabasePositionHistoryService;
 
-    private constructor() {}
-
-    public static getInstance(): DatabasePositionHistoryService {
-        if (!DatabasePositionHistoryService.instance) {
-            DatabasePositionHistoryService.instance = new DatabasePositionHistoryService();
-        }
-        return DatabasePositionHistoryService.instance;
+    constructor() {
+        this.initializeDatabase();    
     }
+    
 
-    public async initialize(): Promise<void> {
-        if (!this.db) {
+    public async initializeDatabase() {
             const dbPath = path.join(__dirname, '../../db/position_history.db');
             this.db = await open({
                 filename: dbPath,
@@ -25,7 +19,6 @@ export class DatabasePositionHistoryService {
             });   
             
             await this.createTables();
-        }
     }
 
     private async createTables(): Promise<void> {
