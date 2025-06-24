@@ -58,6 +58,10 @@
                 <span class="badge bg-success">{{ longCount }} LONG</span>
                 <span class="badge bg-danger">{{ shortCount }} SHORT</span>
               </div>
+              <div class="mt-2">
+                <span class="text-muted">Pairs:</span>
+                <span v-for="pair in uniquePairs" :key="pair" class="badge bg-light text-dark me-1" style="cursor:pointer; text-decoration:underline;" @click="scrollToSymbol(pair)">{{ pair }}</span>
+              </div>
             </div>
             
             <!-- By Interval -->
@@ -92,7 +96,7 @@
               </tr>
             </thead>
             <tbody>
-              <tr v-for="(trade, index) in trades" :key="index">
+              <tr v-for="(trade, index) in trades" :key="index" :id="`symbol-${trade.symbol}`">
                 <td class="px-3 py-2">
                   <div class="d-flex flex-column">
                     <strong>{{ trade.symbol }}</strong>
@@ -386,6 +390,13 @@
       alert('Failed to enter market with modified TP1. Please try again.')
     } finally {
       trades.value[tradeIndex].isLoadingTP1 = false
+    }
+  }
+  
+  const scrollToSymbol = (symbol: string) => {
+    const el = document.getElementById(`symbol-${symbol}`)
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' })
     }
   }
   
