@@ -27,7 +27,7 @@ export class TakeProfitService {
     } else {
       throw new Error('Tipo de trade inválido');
     }
-    tp1 = Number(tp1.toFixed(2));
+    tp1 = Number(tp1.toFixed(5));
 
     // Busca zonas não mitigadas usando ZoneAnalysisService
     const zones = await this.zoneAnalysisService.analyzeZones(symbol, side, entry, stop, adjustedInterval);
