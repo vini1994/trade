@@ -12,6 +12,7 @@ export interface Zone {
     price: number;
     candle: KlineData;
     mitigated: boolean;
+    mitigatedBy: KlineData | null;
     details: Detail;
 }
 
@@ -22,24 +23,38 @@ export class OrderBlockAndFVGDetector {
      * @param side 'LONG' ou 'SHORT'
      */
     public static findUnmitigatedZones(klineData: KlineData[], side: TradeType): Zone[] {
-        const fvgs: Zone[] = this.findFVGs(klineData, side);
-        const orderBlocks: Zone[] = this.findOrderBlocks(klineData, side, fvgs);
+        // Inverter o array para trabalhar do mais antigo para o mais recente
+        const reversedKlines = [...klineData].reverse();
+        const fvgs: Zone[] = this.findFVGs(reversedKlines, side);
+        const orderBlocks: Zone[] = this.findOrderBlocks(reversedKlines, side, fvgs);
         // Checar mitigação
         const allZones = [...orderBlocks, ...fvgs];
-        console.log(allZones)
+        
         for (const zone of allZones) {
-            zone.mitigated = this.isMitigated(klineData, zone, side);
+            ({mitigated: zone.mitigated, candle: zone.mitigatedBy} = this.isMitigated(reversedKlines, zone, side));
         }
+        console.log(allZones)
+
         // Retornar apenas não mitigados
-        return allZones.filter(z => !z.mitigated);
+        const zonesNotMitigated = allZones.filter(z => !z.mitigated);
+        
+        // Ordenar do mais recente para o mais antigo usando closeTime
+        const sortedZones = zonesNotMitigated.sort((a, b) => {
+            const timeA = a.candle.closeTime;
+            const timeB = b.candle.closeTime;
+            return timeB - timeA; // Ordem decrescente (mais recente primeiro)
+        });
+        console.log(sortedZones);
+        return sortedZones;
     }
 
     private static findOrderBlocks(klineData: KlineData[], side: TradeType, fvgs: Zone[]): Zone[] {
         // Nova lógica: todo candle que tiver um FVG é um order block, independente da cor
         const allOBs: Zone[] = [];
         for (const fvg of fvgs) {
-            const candleIndex = fvg.candleIndex-1;
-            const candle = klineData[candleIndex]
+            const candleIndex = fvg.candleIndex - 1;
+            if (candleIndex < 0) continue;
+            const candle = klineData[candleIndex];
             const obHigh = parseFloat(candle.high);
             const obLow = parseFloat(candle.low);
             const ob50 = (obLow + obHigh) / 2;
@@ -49,7 +64,8 @@ export class OrderBlockAndFVGDetector {
                 price: ob50,
                 candle,
                 mitigated: false,
-                details: { high: obHigh, low:obLow, mid:ob50 }
+                mitigatedBy: null,
+                details: { high: obHigh, low: obLow, mid: ob50 }
             };
             allOBs.push(ob);
         }
@@ -57,7 +73,7 @@ export class OrderBlockAndFVGDetector {
         const filteredOBs: Zone[] = [];
         allOBs.sort((a, b) => a.candleIndex - b.candleIndex);
         for (let i = 0; i < allOBs.length; i++) {
-            if (i > 0 && allOBs[i].candleIndex === allOBs[i-1].candleIndex + 1) {
+            if (i > 0 && allOBs[i].candleIndex === allOBs[i - 1].candleIndex + 1) {
                 // Se for sequência, ignore o atual
                 continue;
             }
@@ -67,60 +83,91 @@ export class OrderBlockAndFVGDetector {
     }
 
     private static findFVGs(klineData: KlineData[], side: TradeType): Zone[] {
-        const result: Zone[] = [];
+        const allFVGs: Zone[] = [];
+        // Agora, 0 é o mais antigo, klineData.length-1 é o mais recente
         for (let i = 1; i < klineData.length - 1; i++) {
-            const prev = klineData[i - 1];
+            const prev = klineData[i - 1]; 
             const curr = klineData[i];
-            const next = klineData[i + 1];
+            const next = klineData[i + 1]; 
             if (side === 'LONG') {
-                // FVG de alta: gap entre o fechamento anterior e a mínima da próxima
-                if (parseFloat(prev.close) < parseFloat(next.low)) {
-                    const fvgLow = parseFloat(prev.close);
-                    const fvgHigh = parseFloat(next.low);
-                    const fvg50 = (fvgLow + fvgHigh) / 2;
-                    result.push({
+                // FVG de baixa: gap entre o fechamento anterior e a máxima da próxima
+                if (parseFloat(prev.low) > parseFloat(next.high)) {
+                    const fvgHigh = parseFloat(prev.low);
+                    const fvgLow = parseFloat(next.high);
+                    const fvg50 = (fvgHigh + fvgLow) / 2;
+                    allFVGs.push({
                         type: 'FVG',
                         candleIndex: i,
                         price: fvg50,
                         candle: curr,
                         mitigated: false,
-                        details: { high: fvgHigh, low:fvgLow, mid:fvg50 }
+                        mitigatedBy: null,
+                        details: { high: fvgHigh, low: fvgLow, mid: fvg50 }
                     });
                 }
             } else {
-                // FVG de baixa: gap entre o fechamento anterior e a máxima da próxima
-                if (parseFloat(prev.close) > parseFloat(next.high)) {
-                    const fvgHigh = parseFloat(prev.close);
-                    const fvgLow = parseFloat(next.high);
-                    const fvg50 = (fvgHigh + fvgLow) / 2;
-                    result.push({
+                // FVG de alta: gap entre o fechamento anterior e a mínima da próxima
+                if (parseFloat(prev.high) < parseFloat(next.low)) {
+                    const fvgLow = parseFloat(prev.high);
+                    const fvgHigh = parseFloat(next.low);
+                    const fvg50 = (fvgLow + fvgHigh) / 2;
+                    allFVGs.push({
                         type: 'FVG',
                         candleIndex: i,
                         price: fvg50,
                         candle: curr,
                         mitigated: false,
-                        details: { high: fvgHigh, low:fvgLow, mid:fvg50 }
+                        mitigatedBy: null,
+                        details: { high: fvgHigh, low: fvgLow, mid: fvg50 }
                     });
                 }
             }
+    
         }
-        return result;
+        const filteredFVGs: Zone[] = [];
+        allFVGs.sort((a, b) => a.candleIndex - b.candleIndex);
+        for (let i = 0; i < allFVGs.length; i++) {
+            if (i > 0 && allFVGs[i].candleIndex === allFVGs[i - 1].candleIndex + 1) {
+                // Se for sequência, ignore o atual
+                allFVGs[i - 1].details.high = allFVGs[i].details.high
+                allFVGs[i - 1].details.mid = (allFVGs[i - 1].details.high + allFVGs[i - 1].details.low) / 2;
+                allFVGs[i - 1].price = allFVGs[i - 1].details.mid
+                continue;
+            }
+            filteredFVGs.push(allFVGs[i]);
+        }
+        return filteredFVGs;
     }
 
-    private static isMitigated(klineData: KlineData[], zone: Zone, side: TradeType): boolean {
-        // Verifica se após a formação, o preço tocou o OB ou o 50% do FVG
+    private static isMitigated(klineData: KlineData[], zone: Zone, side: TradeType): {
+            mitigated:boolean,
+            candle: KlineData | null
+        } {
+        // Check if after formation, the price touched the OB or 50% of the FVG
         const { candleIndex, price, type, details } = zone;
-        for (let i = candleIndex + 1; i < klineData.length; i++) {
-            const candle = klineData[i];
-            if (type === 'ORDER_BLOCK') {
-                if ((side === 'LONG') && parseFloat(candle.high) >= details.low) return true;
-                if ((side === 'SHORT') && parseFloat(candle.low) >= details.high) return true;
-            } else if (type === 'FVG') {
-                if ((side === 'LONG') && parseFloat(candle.high) >= price) return true;
-                if ((side === 'SHORT') && parseFloat(candle.low) >= price) return true;
+        
+        // For FVGs: check if the previous candle is larger than the FVG
+        if (type === 'FVG' && candleIndex > 0) {
+            const previousCandle = klineData[candleIndex - 1];
+            const fvgSize = details.high - details.low;
+            const previousCandleSize = parseFloat(previousCandle.high) - parseFloat(previousCandle.low);
+            
+            if (previousCandleSize > fvgSize) {
+                return { mitigated: true, candle: previousCandle };
             }
         }
-        return false;
+        
+        for (let i = candleIndex + 2; i < klineData.length; i++) {
+            const candle = klineData[i];
+            if (type === 'ORDER_BLOCK') {
+                if ((side === 'LONG') && parseFloat(candle.high) >= details.low) return { mitigated: true, candle};
+                if ((side === 'SHORT') && parseFloat(candle.low) <= details.high) return { mitigated: true, candle};
+            } else if (type === 'FVG') {
+                if ((side === 'LONG') && parseFloat(candle.high) >= price) return { mitigated: true, candle};
+                if ((side === 'SHORT') && parseFloat(candle.low) <= price) return { mitigated: true, candle};
+            }
+        }
+        return { mitigated: false, candle: null};
     }
 
     private static isBullish(candle: KlineData): boolean {
