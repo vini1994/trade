@@ -509,8 +509,8 @@
                           </span>
                         </td>
                         <td>{{ position.closePositionAmt }}</td>
-                        <td>${{ formatNumber(parseFloat(position.avgPrice)) }}</td>
-                        <td>${{ formatNumber(position.avgClosePrice) }}</td>
+                        <td>${{ formatNumber(parseFloat(position.avgPrice), 5) }}</td>
+                        <td>${{ formatNumber(position.avgClosePrice, 5) }}</td>
                         <td>{{ position.leverage }}x</td>
                         <td>
                           <span 
@@ -535,8 +535,8 @@
                         <td>
                           <div v-if="position.tradeInfo?.found" class="small">
                             <div class="text-success">Trade #{{ position.tradeInfo.trade?.id }}</div>
-                            <div class="text-muted">Entry: ${{ formatNumber(position.tradeInfo.trade?.entry || 0) }}</div>
-                            <div class="text-muted">Stop: ${{ formatNumber(position.tradeInfo.trade?.stop || 0) }}</div>
+                            <div class="text-muted">Entry: ${{ formatNumber(position.tradeInfo.trade?.entry || 0, 5) }}</div>
+                            <div class="text-muted">Stop: ${{ formatNumber(position.tradeInfo.trade?.stop || 0, 5) }}</div>
                           </div>
                           <div v-else class="text-muted small">No trade info</div>
                         </td>
@@ -861,10 +861,10 @@ const resetFilters = () => {
   loadData()
 }
 
-const formatNumber = (value: number): string => {
+const formatNumber = (value: number, maximum: number = 2): string => {
   return value.toLocaleString('en-US', {
     minimumFractionDigits: 2,
-    maximumFractionDigits: 2
+    maximumFractionDigits: maximum
   })
 }
 
