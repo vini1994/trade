@@ -135,15 +135,11 @@ The system includes a comprehensive position monitoring solution that provides:
 To use the position monitoring system:
 
 ```typescript
-// Initialize and start the position monitor
-const positionMonitorCron = new PositionMonitorCronJob();
-await positionMonitorCron.start();
-
-// The monitor will automatically:
-// - Track all open positions
-// - Update prices in real-time
-// - Manage stop-loss orders
-// - Log position status every minute
+The monitor will automatically:
+- Track all open positions
+- Update prices in real-time
+- Manage stop-loss orders
+- Log position status every minute
 ```
 
 ## Trade Entry Validation Rules
@@ -203,26 +199,6 @@ A trade is only executed when:
 4. Risk-reward ratio meets minimum requirements
 5. Candle wick analysis passes
 
-### Example Usage
-
-```typescript
-// Validate a trade entry
-const validationResult = await tradeValidator.validateTrade({
-    symbol: 'BTCUSDT',
-    type: 'LONG',
-    entry: 50000,
-    stop: 49000,
-    volume: true  // Set to false to bypass volume validation
-});
-
-if (validationResult.isValid) {
-    console.log('Trade is valid:', validationResult.message);
-    console.log('Volume Analysis:', validationResult.volumeAnalysis.color);
-    console.log('Entry Analysis:', validationResult.entryAnalysis.message);
-} else {
-    console.log('Trade is invalid:', validationResult.message);
-}
-```
 
 ## Testing
 
@@ -292,39 +268,6 @@ The system provides RESTful API endpoints for trade operations and monitoring:
 - `GET /api/trades/:id` - Get trade details
 - `PUT /api/trades/:id` - Update trade status
 - `DELETE /api/trades/:id` - Cancel a trade
-
-### Position Monitoring
-
-- `GET /api/positions` - List all open positions
-- `GET /api/positions/:id` - Get position details
-- `PUT /api/positions/:id/stop-loss` - Update stop-loss level
-
-### Notifications
-
-- `GET /api/notifications` - Get recent trade notifications
-- `POST /api/notifications/settings` - Update notification preferences
-
-### Example API Usage
-
-```typescript
-// Create a new trade
-const response = await fetch('/api/trades', {
-    method: 'POST',
-    headers: {
-        'Content-Type': 'application/json'
-    },
-    body: JSON.stringify({
-        symbol: 'BTCUSDT',
-        type: 'LONG',
-        entry: 50000,
-        stop: 49000,
-        tp1: 52000
-    })
-});
-
-// Get open positions
-const positions = await fetch('/api/positions').then(res => res.json());
-```
 
 ## Notification System
 
