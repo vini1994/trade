@@ -351,9 +351,12 @@ export class PositionHistoryService {
                 risks.push(risk);
                 
                 // Calcular risco-retorno
-                if (risk > 0) {
-                    const riskRewardRatio = Math.abs(netProfit) / risk;
-                    riskRewardRatios.push(riskRewardRatio);
+                if ((risk > 0) && (netProfit > 0)) {
+                    const riskRewardRatio = Math.abs(parseFloat(position.avgPrice) - position.avgClosePrice) / risk;
+                    if (riskRewardRatio > 0.3){
+                        riskRewardRatios.push(riskRewardRatio);
+                    }
+                    
                 }
                 
                 // Acumular métricas do trade
@@ -504,6 +507,8 @@ export class PositionHistoryService {
         const entryPrices: number[] = [];
         const stopPrices: number[] = [];
         const takeProfit1s: number[] = [];
+        // Novo: array local para R:R positivos
+        const positiveRRs: number[] = [];
 
         // Distribuições
         const riskDistribution: { [key: string]: number } = {};
@@ -519,24 +524,32 @@ export class PositionHistoryService {
         tradesWithInfo.forEach(position => {
             const trade = position.tradeInfo.trade;
             const netProfit = parseFloat(position.netProfit);
-            
-            // Calcular risco (distância do entry ao stop)
-            const risk = Math.abs(trade.entry - trade.stop);
-            risks.push(risk);
+
+
+                // Calcular risco (distância do entry ao stop)
+                const entryPrice = parseFloat(position.avgPrice);
+                const stopPrice = trade.stop;
+                const risk = Math.abs(entryPrice - stopPrice);
+                risks.push(risk);
+                
+                
             
             // Calcular reward (lucro/prejuízo)
-            rewards.push(Math.abs(netProfit));
+            rewards.push(Math.abs(parseFloat(position.avgPrice) - position.avgClosePrice));
             
-            // Calcular risk-reward ratio
-            if (risk > 0) {
-                const rrRatio = Math.abs(netProfit) / risk;
-                riskRewardRatios.push(rrRatio);
+            // Calcular risco-retorno
+            if ((risk > 0) && (netProfit > 0)) {
+                const riskRewardRatio = Math.abs(parseFloat(position.avgPrice) - position.avgClosePrice) / risk;
+                if (riskRewardRatio > 0.3){
+                    riskRewardRatios.push(riskRewardRatio);
+                    positiveRRs.push(riskRewardRatio);
+                }
             }
-            
+
             // Acumular dados para distribuições
             leverages.push(trade.leverage);
             quantities.push(trade.quantity);
-            entryPrices.push(trade.entry);
+            entryPrices.push(parseFloat(position.avgPrice));
             stopPrices.push(trade.stop);
             if (trade.tp1) {
                 takeProfit1s.push(trade.tp1);
@@ -563,7 +576,7 @@ export class PositionHistoryService {
             symbolAnalysis[position.symbol].risks.push(risk);
             symbolAnalysis[position.symbol].rewards.push(Math.abs(netProfit));
             if (risk > 0) {
-                symbolAnalysis[position.symbol].rrRatios.push(Math.abs(netProfit) / risk);
+                symbolAnalysis[position.symbol].rrRatios.push( Math.abs(parseFloat(position.avgPrice) - position.avgClosePrice) / risk);
             }
 
             // Análise por lado
@@ -587,7 +600,7 @@ export class PositionHistoryService {
             sideAnalysis[position.positionSide].risks.push(risk);
             sideAnalysis[position.positionSide].rewards.push(Math.abs(netProfit));
             if (risk > 0) {
-                sideAnalysis[position.positionSide].rrRatios.push(Math.abs(netProfit) / risk);
+                sideAnalysis[position.positionSide].rrRatios.push( Math.abs(parseFloat(position.avgPrice) - position.avgClosePrice) / risk);
             }
         });
 
@@ -645,6 +658,12 @@ export class PositionHistoryService {
         const stdDev = Math.sqrt(variance);
         const sharpeRatio = stdDev > 0 ? avgReturn / stdDev : 0;
 
+        // Novo: calcular média de R:R para posições positivas
+        let avgRiskReturnedPositive = 0;
+        if (positiveRRs.length > 0) {
+            avgRiskReturnedPositive = positiveRRs.reduce((a, b) => a + b, 0) / positiveRRs.length;
+        }
+
         // Calcular Sortino Ratio (usando apenas retornos negativos)
         const negativeReturns = profits.filter(p => p < 0);
         const downsideDeviation = negativeReturns.length > 0 ? 
@@ -697,7 +716,8 @@ export class PositionHistoryService {
                 tradesWithPositiveRR: riskRewardRatios.filter(rr => rr > 1).length,
                 tradesWithNegativeRR: riskRewardRatios.filter(rr => rr < 1).length,
                 bestRiskRewardRatio: riskRewardRatios.length > 0 ? Math.round(Math.max(...riskRewardRatios) * 100) / 100 : 0,
-                worstRiskRewardRatio: riskRewardRatios.length > 0 ? Math.round(Math.min(...riskRewardRatios) * 100) / 100 : 0
+                worstRiskRewardRatio: riskRewardRatios.length > 0 ? Math.round(Math.min(...riskRewardRatios) * 100) / 100 : 0,
+                avgRiskReturnedPositive: Math.round(avgRiskReturnedPositive * 100) / 100
             },
             performanceMetrics: {
                 sharpeRatio: Math.round(sharpeRatio * 100) / 100,

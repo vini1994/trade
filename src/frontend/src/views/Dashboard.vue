@@ -487,6 +487,7 @@
                         <th>Average Price</th>
                         <th>Close Price</th>
                         <th>Leverage</th>
+                        <th>R:R</th>
                         <th>Result</th>
                         <th>Costs</th>
                         <th>Setup</th>
@@ -513,6 +514,12 @@
                         <td>${{ formatNumber(position.avgClosePrice, 5) }}</td>
                         <td>{{ position.leverage }}x</td>
                         <td>
+                          <span v-if="position.tradeInfo?.found && position.tradeInfo.trade && Math.abs(parseFloat(position.avgPrice) - position.tradeInfo.trade.stop) > 0">
+                            1:{{ (Math.abs(parseFloat(position.avgPrice) - position.avgClosePrice) / Math.abs(parseFloat(position.avgPrice) - position.tradeInfo.trade.stop)).toFixed(2) }}
+                          </span>
+                          <span v-else>-</span>
+                        </td>
+                        <td>
                           <span 
                             class="fw-bold" 
                             :class="parseFloat(position.netProfit) >= 0 ? 'text-success' : 'text-danger'"
@@ -535,7 +542,7 @@
                         <td>
                           <div v-if="position.tradeInfo?.found" class="small">
                             <div class="text-success">Trade #{{ position.tradeInfo.trade?.id }}</div>
-                            <div class="text-muted">Entry: ${{ formatNumber(position.tradeInfo.trade?.entry || 0, 5) }}</div>
+                            <div class="text-muted">Entry: ${{ formatNumber(parseFloat(position.avgPrice) || 0, 5) }}</div>
                             <div class="text-muted">Stop: ${{ formatNumber(position.tradeInfo.trade?.stop || 0, 5) }}</div>
                           </div>
                           <div v-else class="text-muted small">No trade info</div>
@@ -619,7 +626,8 @@ const riskStats = computed(() => {
       tradesWithPositiveRR: 0,
       tradesWithNegativeRR: 0,
       bestRiskRewardRatio: 0,
-      worstRiskRewardRatio: 0
+      worstRiskRewardRatio: 0,
+      avgRiskReturnedPositive: 0
     }
   }
   
@@ -631,7 +639,8 @@ const riskStats = computed(() => {
     tradesWithPositiveRR: detailedStats.value.riskRewardAnalysis.tradesWithPositiveRR,
     tradesWithNegativeRR: detailedStats.value.riskRewardAnalysis.tradesWithNegativeRR,
     bestRiskRewardRatio: detailedStats.value.riskRewardAnalysis.bestRiskRewardRatio,
-    worstRiskRewardRatio: detailedStats.value.riskRewardAnalysis.worstRiskRewardRatio
+    worstRiskRewardRatio: detailedStats.value.riskRewardAnalysis.worstRiskRewardRatio,
+    avgRiskReturnedPositive: detailedStats.value.riskRewardAnalysis.avgRiskReturnedPositive
   }
 })
 

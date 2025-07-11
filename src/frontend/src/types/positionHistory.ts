@@ -113,6 +113,7 @@ export interface DetailedRiskStats {
     tradesWithNegativeRR: number
     bestRiskRewardRatio: number
     worstRiskRewardRatio: number
+    avgRiskReturnedPositive: number
   }
   performanceMetrics: {
     sharpeRatio: number

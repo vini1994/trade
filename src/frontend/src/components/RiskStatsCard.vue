@@ -43,6 +43,10 @@
             <span class="badge bg-success">{{ stats.tradesWithPositiveRR }}</span>
           </div>
           <div class="d-flex justify-content-between align-items-center mb-2">
+            <span class="text-muted small">Avg R:R Positive Trades</span>
+            <span class="badge bg-info">{{ formatNumber(stats.avgRiskReturnedPositive) }}</span>
+          </div>
+          <div class="d-flex justify-content-between align-items-center mb-2">
             <span class="text-muted small">Negative R:R Trades</span>
             <span class="badge bg-danger">{{ stats.tradesWithNegativeRR }}</span>
           </div>
@@ -73,6 +77,7 @@ interface Props {
     tradesWithNegativeRR: number
     bestRiskRewardRatio: number
     worstRiskRewardRatio: number
+    avgRiskReturnedPositive: number
   }
 }
 
