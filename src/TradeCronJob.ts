@@ -203,9 +203,7 @@ export class TradeCronJob {
               interval: trade.interval
             });
           } else {
-            console.error('\nTrade Execution Failed:');
-            console.error(`Error: ${executionResult.message}`);
-            console.log('----------------------------------------');
+            throw new Error(`Failed to execute trade:${executionResult.message}`);
           }
         } catch (error) {
           console.error('Failed to execute trade:', error);
