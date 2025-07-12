@@ -499,7 +499,10 @@
                     <tbody>
                       <tr v-for="position in positions" :key="position.positionId">
                         <td>
-                          <span class="badge bg-primary">{{ position.symbol }}</span>
+                          <div>
+                            <span class="badge bg-primary">{{ position.symbol }}</span>
+                            <div class="small text-muted mt-1">ID: {{ position.positionId }}</div>
+                          </div>
                         </td>
                         <td>
                           <span 
