@@ -402,6 +402,8 @@ export class PositionHistoryService {
             }
         });
 
+        // Calcular total de posições únicas (grupos) e win rate baseado nos grupos
+        const totalUniquePositions = Object.keys(groupedPositions).length;
         const totalTrades = totalTradesWithInfo;
         const netProfit = totalProfit - totalLoss;
         const winRate = totalTrades > 0 ? (winningTrades / totalTrades) * 100 : 0;
@@ -424,7 +426,7 @@ export class PositionHistoryService {
             sideProfits[a] > sideProfits[b] ? a : b, Object.keys(sideProfits)[0] || '');
 
         return {
-            totalPositions: totalTrades,
+            totalPositions: totalUniquePositions,
             totalProfit,
             totalLoss,
             netProfit,
