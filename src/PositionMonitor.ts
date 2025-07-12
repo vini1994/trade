@@ -40,7 +40,7 @@ export class PositionMonitor {
 
   private async matchPositionWithTrade(position: Position): Promise<number | undefined> {
     const normalizedSymbol = normalizeSymbolBingX(position.symbol);
-    const trades = await this.tradeDatabase.getOpenTrades();
+    const trades = await this.tradeDatabase.getAllTrades();
     const matchingTrades = trades.filter(trade =>
       normalizeSymbolBingX(trade.symbol) === normalizedSymbol &&
       trade.type === position.positionSide
