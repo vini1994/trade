@@ -117,11 +117,26 @@ export class PositionMonitor {
     position: Position,
     initialStopPrice: number
   ): Promise<Order | undefined> {
+    console.log('createStopLossOrder - Starting function');
+    console.log('createStopLossOrder - position:', position);
+    console.log('createStopLossOrder - initialStopPrice:', initialStopPrice);
+    
     if (!initialStopPrice || parseFloat(position.positionAmt) === 0) {
+      console.log('createStopLossOrder - Early return: no initialStopPrice or positionAmt is 0');
       return undefined;
     }
 
     try {
+      console.log('createStopLossOrder - Calling placeOrder with params:', {
+        symbol: position.symbol,
+        side: position.positionSide === 'LONG' ? 'SELL' : 'BUY',
+        positionSide: position.positionSide,
+        type: 'STOP',
+        price: initialStopPrice,
+        stopPrice: initialStopPrice,
+        quantity: parseFloat(position.positionAmt)
+      });
+      
       const newStopOrder = await this.orderExecutor.placeOrder(
         position.symbol,
         position.positionSide === 'LONG' ? 'SELL' : 'BUY',
@@ -131,6 +146,8 @@ export class PositionMonitor {
         initialStopPrice,
         parseFloat(position.positionAmt)
       );
+      
+      console.log('createStopLossOrder - placeOrder response:', newStopOrder);
 
       const stopLossOrder: Order = {
         orderId: newStopOrder.data.order.orderId,
@@ -146,6 +163,8 @@ export class PositionMonitor {
         createTime: Date.now(),
         updateTime: Date.now()
       };
+      
+      console.log('createStopLossOrder - Created stopLossOrder object:', stopLossOrder);
 
       // Send notification about the new stop loss order
       await this.notificationService.sendTradeNotification({
@@ -185,8 +204,10 @@ export class PositionMonitor {
         interval: null
       });
 
+      console.log('createStopLossOrder - Successfully created stop loss order and sent notification');
       return stopLossOrder;
     } catch (error) {
+      console.log('createStopLossOrder - Error occurred:', error);
       console.error(`Error creating stop loss order for ${position.symbol} ${position.positionSide}:`, error);
 
       // Send notification about the error
