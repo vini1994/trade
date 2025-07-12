@@ -46,13 +46,14 @@ export class TradeCronJob {
 
     let validCount = 0;
     for (const trade of trades) {
-      // Delay de 2 segundos entre cada trade
-      if (validCount > 0 || trades.indexOf(trade) > 0) {
-        await new Promise(res => setTimeout(res, 2000));
-      }
+      try {
+        // Delay de 1/2 segundos entre cada trade
+        if (validCount > 0 || trades.indexOf(trade) > 0) {
+          await new Promise(res => setTimeout(res, 500));
+        }
 
-      // Validate the trade
-      const validationResult = await this.tradeValidator.validateTrade(trade);
+        // Validate the trade
+        const validationResult = await this.tradeValidator.validateTrade(trade);
 
       console.log(`\nTrade #${trades.indexOf(trade) + 1}:`);
       console.log(`symbol: ${trade.symbol}`);
@@ -230,6 +231,56 @@ export class TradeCronJob {
             interval: trade.interval
           });
         }
+      }
+    } catch (error) {
+        console.error(`\n❌ Error processing trade #${trades.indexOf(trade) + 1} (${trade.symbol}):`, error);
+        console.log('----------------------------------------');
+        
+        // Send notification about the error
+        try {
+          await this.notificationService.sendTradeNotification({
+            symbol: trade.symbol,
+            type: trade.type,
+            entry: trade.entry,
+            stop: trade.stop,
+            takeProfits: {
+              tp1: trade.tp1,
+              tp2: trade.tp2,
+              tp3: trade.tp3,
+              tp4: trade.tp4,
+              tp5: trade.tp5,
+              tp6: trade.tp6
+            },
+            validation: { 
+              isValid: false, 
+              message: 'Error during processing',
+              volumeAnalysis: {
+                color: 'UNKNOWN',
+                stdBar: 0,
+                currentVolume: 0,
+                mean: 0,
+                std: 0
+              },
+              entryAnalysis: {
+                currentClose: 0,
+                canEnter: false,
+                hasClosePriceBeforeEntry: false,
+                message: 'Error during processing'
+              }
+            },
+            analysisUrl: trade.url_analysis || '',
+            executionError: error instanceof Error ? error.message : 'Unknown error occurred',
+            volume_adds_margin: trade.volume_adds_margin,
+            setup_description: trade.setup_description,
+            volume_required: trade.volume_required,
+            interval: trade.interval
+          });
+        } catch (notificationError) {
+          console.error('Failed to send error notification:', notificationError);
+        }
+        
+        // Continue to next trade
+        continue;
       }
     }
 

@@ -40,7 +40,7 @@ export class PositionMonitor {
 
   private async matchPositionWithTrade(position: Position): Promise<number | undefined> {
     const normalizedSymbol = normalizeSymbolBingX(position.symbol);
-    const trades = await this.tradeDatabase.getOpenTrades();
+    const trades = await this.tradeDatabase.getAllTrades();
     const matchingTrades = trades.filter(trade =>
       normalizeSymbolBingX(trade.symbol) === normalizedSymbol &&
       trade.type === position.positionSide
@@ -118,10 +118,21 @@ export class PositionMonitor {
     initialStopPrice: number
   ): Promise<Order | undefined> {
     if (!initialStopPrice || parseFloat(position.positionAmt) === 0) {
+      console.log('createStopLossOrder - Early return: no initialStopPrice or positionAmt is 0');
       return undefined;
     }
 
     try {
+      console.log('createStopLossOrder - Calling placeOrder with params:', {
+        symbol: position.symbol,
+        side: position.positionSide === 'LONG' ? 'SELL' : 'BUY',
+        positionSide: position.positionSide,
+        type: 'STOP',
+        price: initialStopPrice,
+        stopPrice: initialStopPrice,
+        quantity: parseFloat(position.positionAmt)
+      });
+      
       const newStopOrder = await this.orderExecutor.placeOrder(
         position.symbol,
         position.positionSide === 'LONG' ? 'SELL' : 'BUY',
@@ -254,7 +265,6 @@ export class PositionMonitor {
     if (tradeId) {
       const trade = await this.tradeDatabase.getTradeById(tradeId);
       initialStopPrice = trade?.stop; // Using the 'stop' field from TradeRecord
-
       // If no stop loss order exists but we have a trade stop price, create one
       if (!stopLossOrder && initialStopPrice) {
         stopLossOrder = await this.createStopLossOrder(position, initialStopPrice);
@@ -267,10 +277,11 @@ export class PositionMonitor {
       existingPosition.stopLossOrder = stopLossOrder;
       existingPosition.leverage = leverage;
       existingPosition.entryPrice = parseFloat(position.avgPrice);
-      if (stopLossOrder) {
+      if (initialStopPrice) {
+        existingPosition.initialStopPrice = initialStopPrice;
+      } else if (stopLossOrder){
         existingPosition.initialStopPrice = parseFloat(stopLossOrder.stopPrice);
       }
-
     }
 
     if (!existingPosition?.websocket) {
@@ -285,7 +296,7 @@ export class PositionMonitor {
         tradeId,
         lastPrice: undefined,
         stopLossOrder,
-        initialStopPrice: stopLossOrder ? parseFloat(stopLossOrder.stopPrice) : undefined,
+        initialStopPrice: initialStopPrice ? initialStopPrice : stopLossOrder ? parseFloat(stopLossOrder.stopPrice) : undefined,
         entryPrice: parseFloat(position.avgPrice),
         leverage
       });
@@ -357,7 +368,7 @@ export class PositionMonitor {
           position.stopLossOrder.stopPrice = breakevenWithFees.toString()
         }
         try {
-          await this.orderExecutor.cancelReplaceOrder(
+          const response = await this.orderExecutor.cancelReplaceOrder(
             position.symbol,
             positionSide === 'LONG' ? 'SELL' : 'BUY',
             positionSide,
@@ -368,6 +379,11 @@ export class PositionMonitor {
             position.tradeId,
             position.stopLossOrder.orderId
           );
+
+          // Check if the response code indicates an error
+          if (response.code !== 0) {
+            throw new Error(`API Error: ${response.msg} (code: ${response.code})`);
+          }
 
           position.stopLossOrder = {
             ...position.stopLossOrder,

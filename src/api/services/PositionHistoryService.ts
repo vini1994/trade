@@ -237,6 +237,17 @@ export class PositionHistoryService {
             };
         }
 
+        // Agrupar posições por positionId
+        const groupedPositions: { [positionId: string]: PositionHistory[] } = {};
+        positions.forEach(position => {
+            if (position.positionId) {
+                if (!groupedPositions[position.positionId]) {
+                    groupedPositions[position.positionId] = [];
+                }
+                groupedPositions[position.positionId].push(position);
+            }
+        });
+
         let totalProfit = 0;
         let totalLoss = 0;
         let winningTrades = 0;
@@ -274,15 +285,31 @@ export class PositionHistoryService {
         let bestProfit = -Infinity;
         let worstProfit = Infinity;
 
-        positions.forEach((position, index) => {
-            // Métricas baseadas no trade
-            if (position.tradeInfo && position.tradeInfo?.trade && position.tradeInfo?.found) {
+        // Processar cada grupo de posições
+        Object.values(groupedPositions).forEach(positionGroup => {
+            if (positionGroup.length === 0) return;
 
-                const netProfit = parseFloat(position.netProfit);
-                profits.push(netProfit);
+            // Pegar a primeira posição do grupo como referência
+            const firstPosition = positionGroup[0];
+            
+            // Métricas baseadas no trade
+            if (firstPosition.tradeInfo && firstPosition.tradeInfo?.trade && firstPosition.tradeInfo?.found) {
+                // Somar valores e tarifas de todas as posições do grupo
+                let groupNetProfit = 0;
+                let groupPositionCommission = 0;
+                let groupTotalFunding = 0;
+                let maxRiskRewardRatio = 0;
+
+                positionGroup.forEach(position => {
+                    groupNetProfit += parseFloat(position.netProfit);
+                    groupPositionCommission += parseFloat(position.positionCommission);
+                    groupTotalFunding += parseFloat(position.totalFunding);
+                });
+
+                profits.push(groupNetProfit);
                 
                 // Atualizar sequências
-                if (netProfit > 0) {
+                if (groupNetProfit > 0) {
                     currentConsecutiveWins++;
                     currentConsecutiveLosses = 0;
                     if (currentConsecutiveWins > maxConsecutiveWins) {
@@ -296,32 +323,32 @@ export class PositionHistoryService {
                     }
                 }
                 
-                if (netProfit > 0) {
-                    totalProfit += netProfit;
+                if (groupNetProfit > 0) {
+                    totalProfit += groupNetProfit;
                     winningTrades++;
                 } else {
-                    totalLoss += Math.abs(netProfit);
+                    totalLoss += Math.abs(groupNetProfit);
                     losingTrades++;
                 }
 
                 // Group by symbol
-                if (!profitBySymbol[position.symbol]) {
-                    profitBySymbol[position.symbol] = 0;
-                    symbolProfits[position.symbol] = 0;
+                if (!profitBySymbol[firstPosition.symbol]) {
+                    profitBySymbol[firstPosition.symbol] = 0;
+                    symbolProfits[firstPosition.symbol] = 0;
                 }
-                profitBySymbol[position.symbol] += netProfit;
-                symbolProfits[position.symbol] += netProfit;
+                profitBySymbol[firstPosition.symbol] += groupNetProfit;
+                symbolProfits[firstPosition.symbol] += groupNetProfit;
 
                 // Group by position side
-                if (!profitBySide[position.positionSide]) {
-                    profitBySide[position.positionSide] = 0;
-                    sideProfits[position.positionSide] = 0;
+                if (!profitBySide[firstPosition.positionSide]) {
+                    profitBySide[firstPosition.positionSide] = 0;
+                    sideProfits[firstPosition.positionSide] = 0;
                 }
-                profitBySide[position.positionSide] += netProfit;
-                sideProfits[position.positionSide] += netProfit;
+                profitBySide[firstPosition.positionSide] += groupNetProfit;
+                sideProfits[firstPosition.positionSide] += groupNetProfit;
 
                 // Calcular drawdown
-                runningBalance += netProfit;
+                runningBalance += groupNetProfit;
                 if (runningBalance > peakBalance) {
                     peakBalance = runningBalance;
                 }
@@ -332,31 +359,36 @@ export class PositionHistoryService {
                 drawdowns.push(currentDrawdown);
 
                 // Melhor e pior trade
-                if (netProfit > bestProfit) {
-                    bestProfit = netProfit;
-                    bestTradeId = position.tradeInfo && position.tradeInfo.trade && position.tradeInfo?.found ? position.tradeInfo.trade.id : null;
+                if (groupNetProfit > bestProfit) {
+                    bestProfit = groupNetProfit;
+                    bestTradeId = firstPosition.tradeInfo && firstPosition.tradeInfo.trade && firstPosition.tradeInfo?.found ? firstPosition.tradeInfo.trade.id : null;
                 }
-                if (netProfit < worstProfit) {
-                    worstProfit = netProfit;
-                    worstTradeId = position.tradeInfo && position.tradeInfo.trade && position.tradeInfo?.found ? position.tradeInfo.trade.id : null;
+                if (groupNetProfit < worstProfit) {
+                    worstProfit = groupNetProfit;
+                    worstTradeId = firstPosition.tradeInfo && firstPosition.tradeInfo.trade && firstPosition.tradeInfo?.found ? firstPosition.tradeInfo.trade.id : null;
                 }
 
                 totalTradesWithInfo++;
-                const trade = position.tradeInfo?.trade;
+                const trade = firstPosition.tradeInfo?.trade;
                 
                 // Calcular risco (distância do entry ao stop)
-                const entryPrice = parseFloat(position.avgPrice);
+                const entryPrice = parseFloat(firstPosition.avgPrice);
                 const stopPrice = trade.stop;
                 const risk = Math.abs(entryPrice - stopPrice);
                 risks.push(risk);
                 
-                // Calcular risco-retorno
-                if ((risk > 0) && (netProfit > 0)) {
-                    const riskRewardRatio = Math.abs(parseFloat(position.avgPrice) - position.avgClosePrice) / risk;
-                    if (riskRewardRatio > 0.3){
-                        riskRewardRatios.push(riskRewardRatio);
-                    }
+                // Calcular risco-retorno usando o máximo entre as posições do grupo
+                if (risk > 0 && groupNetProfit > 0) {
+                    positionGroup.forEach(position => {
+                        const positionRiskRewardRatio = Math.abs(parseFloat(position.avgPrice) - position.avgClosePrice) / risk;
+                        if (positionRiskRewardRatio > maxRiskRewardRatio) {
+                            maxRiskRewardRatio = positionRiskRewardRatio;
+                        }
+                    });
                     
+                    if (maxRiskRewardRatio > 0.3) {
+                        riskRewardRatios.push(maxRiskRewardRatio);
+                    }
                 }
                 
                 // Acumular métricas do trade
@@ -370,6 +402,8 @@ export class PositionHistoryService {
             }
         });
 
+        // Calcular total de posições únicas (grupos) e win rate baseado nos grupos
+        const totalUniquePositions = Object.keys(groupedPositions).length;
         const totalTrades = totalTradesWithInfo;
         const netProfit = totalProfit - totalLoss;
         const winRate = totalTrades > 0 ? (winningTrades / totalTrades) * 100 : 0;
@@ -392,7 +426,7 @@ export class PositionHistoryService {
             sideProfits[a] > sideProfits[b] ? a : b, Object.keys(sideProfits)[0] || '');
 
         return {
-            totalPositions: totalTrades,
+            totalPositions: totalUniquePositions,
             totalProfit,
             totalLoss,
             netProfit,
