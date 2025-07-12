@@ -251,10 +251,13 @@ export class PositionMonitor {
 
 
     let initialStopPrice: number | undefined;
+    console.log('position', position);
+    console.log('stopLossOrder', stopLossOrder);
+    console.log('tradeId', tradeId);
     if (tradeId) {
       const trade = await this.tradeDatabase.getTradeById(tradeId);
       initialStopPrice = trade?.stop; // Using the 'stop' field from TradeRecord
-
+      console.log('initialStopPrice', initialStopPrice);
       // If no stop loss order exists but we have a trade stop price, create one
       if (!stopLossOrder && initialStopPrice) {
         stopLossOrder = await this.createStopLossOrder(position, initialStopPrice);
@@ -267,10 +270,11 @@ export class PositionMonitor {
       existingPosition.stopLossOrder = stopLossOrder;
       existingPosition.leverage = leverage;
       existingPosition.entryPrice = parseFloat(position.avgPrice);
-      if (stopLossOrder) {
+      if (initialStopPrice) {
+        existingPosition.initialStopPrice = initialStopPrice;
+      } else if (stopLossOrder){
         existingPosition.initialStopPrice = parseFloat(stopLossOrder.stopPrice);
       }
-
     }
 
     if (!existingPosition?.websocket) {
@@ -285,7 +289,7 @@ export class PositionMonitor {
         tradeId,
         lastPrice: undefined,
         stopLossOrder,
-        initialStopPrice: stopLossOrder ? parseFloat(stopLossOrder.stopPrice) : undefined,
+        initialStopPrice: initialStopPrice ? initialStopPrice : stopLossOrder ? parseFloat(stopLossOrder.stopPrice) : undefined,
         entryPrice: parseFloat(position.avgPrice),
         leverage
       });
@@ -357,7 +361,7 @@ export class PositionMonitor {
           position.stopLossOrder.stopPrice = breakevenWithFees.toString()
         }
         try {
-          await this.orderExecutor.cancelReplaceOrder(
+          const response = await this.orderExecutor.cancelReplaceOrder(
             position.symbol,
             positionSide === 'LONG' ? 'SELL' : 'BUY',
             positionSide,
@@ -368,6 +372,11 @@ export class PositionMonitor {
             position.tradeId,
             position.stopLossOrder.orderId
           );
+
+          // Check if the response code indicates an error
+          if (response.code !== 0) {
+            throw new Error(`API Error: ${response.msg} (code: ${response.code})`);
+          }
 
           position.stopLossOrder = {
             ...position.stopLossOrder,
