@@ -46,6 +46,7 @@ export class TradeCronJob {
 
     let validCount = 0;
     for (const trade of trades) {
+      let validationResult = null;
       try {
         // Delay de 1/2 segundos entre cada trade
         if (validCount > 0 || trades.indexOf(trade) > 0) {
@@ -53,57 +54,57 @@ export class TradeCronJob {
         }
 
         // Validate the trade
-        const validationResult = await this.tradeValidator.validateTrade(trade);
+        validationResult = await this.tradeValidator.validateTrade(trade);
 
-      console.log(`\nTrade #${trades.indexOf(trade) + 1}:`);
-      console.log(`symbol: ${trade.symbol}`);
-      console.log(`Position: ${trade.type}`);
-      console.log(`Interval: ${trade.interval}`);
-      console.log(`Entry: ${trade.entry}`);
-      console.log(`Stop: ${trade.stop}`);
-      console.log(`Take Profits: ${[trade.tp1, trade.tp2, trade.tp3, trade.tp4, trade.tp5, trade.tp6]
-        .filter(tp => tp !== null)
-        .join(', ')}`);
-      console.log('\nValidation Results:');
-      console.log(`Validation: ${validationResult.isValid}`);
-      console.log(`Message: ${validationResult.message}`);
-      console.log(`Volume Analysis: ${validationResult.volumeAnalysis.color} (StdBar: ${validationResult.volumeAnalysis.stdBar.toFixed(2)})`);
-      console.log(`Current Close: ${validationResult.entryAnalysis.currentClose}`);
-      console.log(`Recent Closes: ${validationResult.recentCloses}`);
+        console.log(`\nTrade #${trades.indexOf(trade) + 1}:`);
+        console.log(`symbol: ${trade.symbol}`);
+        console.log(`Position: ${trade.type}`);
+        console.log(`Interval: ${trade.interval}`);
+        console.log(`Entry: ${trade.entry}`);
+        console.log(`Stop: ${trade.stop}`);
+        console.log(`Take Profits: ${[trade.tp1, trade.tp2, trade.tp3, trade.tp4, trade.tp5, trade.tp6]
+          .filter(tp => tp !== null)
+          .join(', ')}`);
+        console.log('\nValidation Results:');
+        console.log(`Validation: ${validationResult.isValid}`);
+        console.log(`Message: ${validationResult.message}`);
+        console.log(`Volume Analysis: ${validationResult.volumeAnalysis.color} (StdBar: ${validationResult.volumeAnalysis.stdBar.toFixed(2)})`);
+        console.log(`Current Close: ${validationResult.entryAnalysis.currentClose}`);
+        console.log(`Recent Closes: ${validationResult.recentCloses}`);
 
-      if (validationResult.warning) {
-        console.log(`⚠️ WARNING: Trade has warning status - Entry conditions met but invalidated by other factors`);
-      }
-      console.log('----------------------------------------');
+        if (validationResult.warning) {
+          console.log(`⚠️ WARNING: Trade has warning status - Entry conditions met but invalidated by other factors`);
+        }
+        console.log('----------------------------------------');
 
-      // Send notification for trades with warning status
-      if (validationResult.warning) {
-        await this.notificationService.sendTradeNotification({
-          symbol: trade.symbol,
-          type: trade.type,
-          entry: trade.entry,
-          stop: trade.stop,
-          takeProfits: {
-            tp1: trade.tp1,
-            tp2: trade.tp2,
-            tp3: trade.tp3,
-            tp4: trade.tp4,
-            tp5: trade.tp5,
-            tp6: trade.tp6
-          },
-          validation: validationResult,
-          analysisUrl: trade.url_analysis || '',
-          isWarning: true,
-          volume_adds_margin: trade.volume_adds_margin,
-          setup_description: trade.setup_description,
-          volume_required: trade.volume_required,
-          interval: trade.interval
-        });
-      }
+        // Send notification for trades with warning status
+        if (validationResult.warning) {
+          await this.notificationService.sendTradeNotification({
+            symbol: trade.symbol,
+            type: trade.type,
+            entry: trade.entry,
+            stop: trade.stop,
+            takeProfits: {
+              tp1: trade.tp1,
+              tp2: trade.tp2,
+              tp3: trade.tp3,
+              tp4: trade.tp4,
+              tp5: trade.tp5,
+              tp6: trade.tp6
+            },
+            validation: validationResult,
+            analysisUrl: trade.url_analysis || '',
+            isWarning: true,
+            volume_adds_margin: trade.volume_adds_margin,
+            setup_description: trade.setup_description,
+            volume_required: trade.volume_required,
+            interval: trade.interval
+          });
+        }
 
-      if (validationResult.isValid) {
-        validCount++;
-
+        if (validationResult.isValid) {
+          validCount++;
+        }
 
         // Check if BingX API credentials are available
         const bingxApiKey = process.env.BINGX_API_KEY;
@@ -140,8 +141,7 @@ export class TradeCronJob {
         }
 
         // Execute the trade using TradeExecutor
-        try {
-          const executionResult = await this.tradeExecutor.executeTrade({
+        const executionResult = await this.tradeExecutor.executeTrade({
             symbol: trade.symbol,
             type: trade.type,
             entry: trade.entry,
@@ -206,33 +206,8 @@ export class TradeCronJob {
           } else {
             throw new Error(`Failed to execute trade:${executionResult.message}`);
           }
-        } catch (error) {
-          console.error('Failed to execute trade:', error);
-          // Send notification about execution failure
-          await this.notificationService.sendTradeNotification({
-            symbol: trade.symbol,
-            type: trade.type,
-            entry: trade.entry,
-            stop: trade.stop,
-            takeProfits: {
-              tp1: trade.tp1,
-              tp2: trade.tp2,
-              tp3: trade.tp3,
-              tp4: trade.tp4,
-              tp5: trade.tp5,
-              tp6: trade.tp6
-            },
-            validation: validationResult,
-            analysisUrl: trade.url_analysis || '',
-            executionError: error instanceof Error ? error.message : undefined,
-            volume_adds_margin: trade.volume_adds_margin,
-            setup_description: trade.setup_description,
-            volume_required: trade.volume_required,
-            interval: trade.interval
-          });
-        }
-      }
-    } catch (error) {
+      
+      } catch (error) {
         console.error(`\n❌ Error processing trade #${trades.indexOf(trade) + 1} (${trade.symbol}):`, error);
         console.log('----------------------------------------');
         
@@ -251,7 +226,7 @@ export class TradeCronJob {
               tp5: trade.tp5,
               tp6: trade.tp6
             },
-            validation: { 
+            validation: validationResult?validationResult:{ 
               isValid: false, 
               message: 'Error during processing',
               volumeAnalysis: {
@@ -279,8 +254,6 @@ export class TradeCronJob {
           console.error('Failed to send error notification:', notificationError);
         }
         
-        // Continue to next trade
-        continue;
       }
     }
 
