@@ -64,7 +64,28 @@
                       id="endDate"
                     >
                   </div>
-                  <div class="col-md-4">
+                  <div class="col-md-2">
+                    <label for="minResult" class="form-label fw-semibold">
+                      Min Result ($)
+                      <i class="bi bi-info-circle ms-1" 
+                         data-bs-toggle="tooltip" 
+                         data-bs-placement="top" 
+                         title="Positive values: show trades with profit ≥ this amount. Negative values: show trades with loss ≤ this amount (e.g., -100 shows trades losing $100 or less)"></i>
+                    </label>
+                    <input 
+                      type="number" 
+                      v-model="filters.minResult" 
+                      @change="loadData" 
+                      class="form-control" 
+                      id="minResult"
+                      placeholder="0.00"
+                      step="0.01"
+                    >
+                    <div class="form-text small text-muted">
+                      Positive: min profit, Negative: max loss
+                    </div>
+                  </div>
+                  <div class="col-md-2">
                     <div class="d-flex gap-2">
                       <button @click="loadData" class="btn btn-primary">
                         <i class="bi bi-arrow-clockwise me-2"></i>
@@ -72,7 +93,7 @@
                       </button>
                       <button @click="resetFilters" class="btn btn-outline-secondary">
                         <i class="bi bi-x-circle me-2"></i>
-                        Clear Filters
+                        Clear
                       </button>
                     </div>
                   </div>
@@ -714,7 +735,8 @@ const filters = ref({
   symbol: 'ALL',
   setupDescription: 'ALL',
   startDate: '',
-  endDate: ''
+  endDate: '',
+  minResult: 0
 })
 
 // Computed properties for risk stats
@@ -895,6 +917,10 @@ const loadPositions = async () => {
       params.append('endTs', new Date(filters.value.endDate).getTime().toString())
     }
 
+    if (filters.value.minResult !== 0) {
+      params.append('minResult', filters.value.minResult.toString())
+    }
+
     const response = await fetch(`/api/position-history?${params}`)
     const result = await response.json()
     
@@ -921,6 +947,10 @@ const loadStats = async () => {
     }
     if (filters.value.endDate) {
       params.append('endTs', new Date(filters.value.endDate).getTime().toString())
+    }
+
+    if (filters.value.minResult !== 0) {
+      params.append('minResult', filters.value.minResult.toString())
     }
 
     const response = await fetch(`/api/position-history/stats?${params}`)
@@ -951,6 +981,10 @@ const loadDetailedRiskStats = async () => {
       params.append('endTs', new Date(filters.value.endDate).getTime().toString())
     }
 
+    if (filters.value.minResult !== 0) {
+      params.append('minResult', filters.value.minResult.toString())
+    }
+
     const response = await fetch(`/api/position-history/risk-stats?${params}`)
     const result = await response.json()
     
@@ -967,7 +1001,8 @@ const resetFilters = () => {
     symbol: 'ALL',
     setupDescription: 'ALL',
     startDate: '',
-    endDate: ''
+    endDate: '',
+    minResult: 0
   }
   loadData()
 }
@@ -986,6 +1021,10 @@ const formatDate = (timestamp: number): string => {
 // Lifecycle
 onMounted(() => {
   loadData()
+  
+  // Initialize Bootstrap tooltips
+  const tooltipTriggerList = document.querySelectorAll('[data-bs-toggle="tooltip"]')
+  const tooltipList = [...tooltipTriggerList].map(tooltipTriggerEl => new (window as any).bootstrap.Tooltip(tooltipTriggerEl))
 })
 </script>
 

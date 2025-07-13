@@ -25,13 +25,42 @@ export class PositionHistoryController {
         return symbol.replace('-', '').toUpperCase();
     }
 
+    /**
+     * Filters positions by minimum result value
+     * @param positions Array of positions to filter
+     * @param minResult Minimum result value (positive for profit, negative for loss)
+     * @returns Filtered positions
+     */
+    private filterByMinResult(positions: any[], minResult: string | undefined): any[] {
+        if (minResult === undefined || minResult === null) {
+            return positions;
+        }
+
+        const minResultValue = parseFloat(minResult);
+        if (isNaN(minResultValue)) {
+            return positions;
+        }
+
+        return positions.filter(position => {
+            const netProfit = parseFloat(position.netProfit);
+            if (minResultValue >= 0) {
+                // For positive values: show trades with profit >= minResult
+                return netProfit >= minResultValue;
+            } else {
+                // For negative values: show trades with loss <= minResult (e.g., -100 shows trades losing $100 or less)
+                return netProfit <= minResultValue;
+            }
+        });
+    }
+
     public async getPositionHistory(req: Request, res: Response): Promise<void> {
         try {
             const { 
                 symbol = 'ALL', 
                 setupDescription,
                 startTs, 
-                endTs
+                endTs,
+                minResult
             } = req.query;
 
             const positions = await this.positionHistoryService.getPositionHistory(
@@ -51,6 +80,9 @@ export class PositionHistoryController {
                 );
             }
 
+            // Filter by minimum result
+            positionsWithTradeInfo = this.filterByMinResult(positionsWithTradeInfo, minResult as string);
+
             res.json({
                 success: true,
                 data: positionsWithTradeInfo,
@@ -67,7 +99,7 @@ export class PositionHistoryController {
 
     public async getPositionStats(req: Request, res: Response): Promise<void> {
         try {
-            const { symbol = 'ALL', setupDescription, startTs, endTs } = req.query;
+            const { symbol = 'ALL', setupDescription, startTs, endTs, minResult } = req.query;
 
             const positions = await this.positionHistoryService.getPositionHistory(
                 symbol as string,
@@ -85,6 +117,9 @@ export class PositionHistoryController {
                     position.tradeInfo.trade?.setup_description === setupDescription
                 );
             }
+
+            // Filter by minimum result
+            positionsWithTradeInfo = this.filterByMinResult(positionsWithTradeInfo, minResult as string);
 
             const stats = this.positionHistoryService.calculateStats(positionsWithTradeInfo);
 
@@ -149,7 +184,7 @@ export class PositionHistoryController {
 
     public async getDetailedRiskStats(req: Request, res: Response): Promise<void> {
         try {
-            const { symbol = 'ALL', setupDescription, startTs, endTs } = req.query;
+            const { symbol = 'ALL', setupDescription, startTs, endTs, minResult } = req.query;
             const positions = await this.positionHistoryService.getPositionHistory(
                 symbol as string,
                 startTs ? parseInt(startTs as string) : undefined,
@@ -164,6 +199,10 @@ export class PositionHistoryController {
                     position.tradeInfo.trade?.setup_description === setupDescription
                 );
             }
+
+            // Filter by minimum result
+            positionsWithTradeInfo = this.filterByMinResult(positionsWithTradeInfo, minResult as string);
+
             const detailedStats = this.positionHistoryService.calculateDetailedRiskStats(positionsWithTradeInfo);
             res.json({
                 success: true,
