@@ -105,7 +105,7 @@ export class BingXOrderExecutor {
 
             // Check if the response indicates an error
             if (response && typeof response === 'object' && 'code' in response && response.code !== 0) {
-                throw new Error(`API Error: ${response.msg} (code: ${response.code}) symbol: ${normalizedPair} side: ${side} positionSide: ${positionSide} type: ${type} price: ${price} stopPrice: ${stopPrice} quantity: ${quantity} clientOrderId: ${params.clientOrderId}`);
+                throw new Error(`API Error: ${response.msg} (code: ${response.code} symbol: ${normalizedPair} side: ${side} positionSide: ${positionSide} type: ${type} price: ${price} stopPrice: ${stopPrice} quantity: ${quantity} clientOrderId: ${params.clientOrderId})`);
             }
             
             // Save log if tradeId is provided
