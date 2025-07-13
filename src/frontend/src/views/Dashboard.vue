@@ -1022,9 +1022,11 @@ const formatDate = (timestamp: number): string => {
 onMounted(() => {
   loadData()
   
-  // Initialize Bootstrap tooltips
-  const tooltipTriggerList = document.querySelectorAll('[data-bs-toggle="tooltip"]')
-  const tooltipList = [...tooltipTriggerList].map(tooltipTriggerEl => new (window as any).bootstrap.Tooltip(tooltipTriggerEl))
+  // Initialize Bootstrap tooltips if available
+  if (typeof window !== 'undefined' && (window as any).bootstrap) {
+    const tooltipTriggerList = document.querySelectorAll('[data-bs-toggle="tooltip"]')
+    const tooltipList = [...tooltipTriggerList].map(tooltipTriggerEl => new (window as any).bootstrap.Tooltip(tooltipTriggerEl))
+  }
 })
 </script>
 
