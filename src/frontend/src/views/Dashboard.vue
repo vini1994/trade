@@ -788,13 +788,13 @@ const performanceStats = computed(() => {
 
 // Computed properties for costs
 const totalCommission = computed(() => {
-  return positions.value.reduce((total, position) => {
+  return positions.value.reduce((total: number, position: PositionHistory) => {
     return total + parseFloat(position.positionCommission || '0')
   }, 0)
 })
 
 const totalFunding = computed(() => {
-  return positions.value.reduce((total, position) => {
+  return positions.value.reduce((total: number, position: PositionHistory) => {
     return total + parseFloat(position.totalFunding || '0')
   }, 0)
 })
@@ -814,7 +814,7 @@ const averageFunding = computed(() => {
 const costsBySymbol = computed(() => {
   const costs: { [key: string]: CostsBySymbol } = {}
   
-  positions.value.forEach(position => {
+  positions.value.forEach((position: PositionHistory) => {
     const symbol = position.symbol
     const commission = parseFloat(position.positionCommission || '0')
     const funding = parseFloat(position.totalFunding || '0')
