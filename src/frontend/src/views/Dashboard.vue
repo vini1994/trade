@@ -947,9 +947,7 @@ const loadPositions = async () => {
       params.append('endTs', new Date(filters.value.endDate).getTime().toString())
     }
 
-    if (filters.value.minResult !== 0) {
-      params.append('minResult', filters.value.minResult.toString())
-    }
+    params.append('minResult', filters.value.minResult.toString())
 
     const response = await fetch(`/api/position-history?${params}`)
     const result = await response.json()
