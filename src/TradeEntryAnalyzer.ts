@@ -85,16 +85,6 @@ export class TradeEntryAnalyzer {
             const currentCandle = klineData[0];
             const currentClose = parseFloat(currentCandle.close);
 
-            // New validation: currentClose must not surpass tp1
-            if ((trade.type === 'LONG' && currentClose > trade.tp1) || (trade.type === 'SHORT' && currentClose < trade.tp1)) {
-                return {
-                    canEnter: false,
-                    currentClose,
-                    hasClosePriceBeforeEntry: false,
-                    warning: true,
-                    message: `Current close (${currentClose}) has surpassed the first take profit (${trade.tp1})`
-                };
-            }
             
             // Check if entry condition is met first
             const entryConditionMet = this.isEntryConditionMet(currentCandle, trade.entry, trade.type);
@@ -103,6 +93,8 @@ export class TradeEntryAnalyzer {
                 hasClosePriceBeforeEntry = this.hasClosePriceBeforeEntry(klineData, trade.entry, trade.type);
             }
             if (entryConditionMet && hasClosePriceBeforeEntry){
+
+
                 // Validate risk-reward ratio
                 if (riskRewardRatio < 0.9) {
                     return {
@@ -124,6 +116,18 @@ export class TradeEntryAnalyzer {
                         message: `Invalid candle wick ratio. ${trade.type === 'LONG' ? 'Upper' : 'Lower'} wick is more than 80% of total candle height [${source}]`
                     };
                 }
+
+                // New validation: currentClose must not surpass tp1
+                if ((trade.type === 'LONG' && currentClose > trade.tp1) || (trade.type === 'SHORT' && currentClose < trade.tp1)) {
+                    return {
+                        canEnter: false,
+                        currentClose,
+                        hasClosePriceBeforeEntry,
+                        warning: entryConditionMet && hasClosePriceBeforeEntry,
+                        message: `Current close (${currentClose}) has surpassed the first take profit (${trade.tp1})`
+                    };
+                }
+
 
             }
 

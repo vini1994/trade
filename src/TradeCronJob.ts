@@ -159,54 +159,54 @@ export class TradeCronJob {
               interval: trade.interval
             });
 
-            if (executionResult.success) {
-              console.log('\nTrade Execution Results:');
-              console.log(`Status: ${executionResult.message}`);
-              console.log(`Leverage: ${executionResult.data?.leverage.optimalLeverage}x`);
-              console.log(`Quantity: ${executionResult.data?.quantity}`);
+          if (executionResult.success) {
+            console.log('\nTrade Execution Results:');
+            console.log(`Status: ${executionResult.message}`);
+            console.log(`Leverage: ${executionResult.data?.leverage.optimalLeverage}x`);
+            console.log(`Quantity: ${executionResult.data?.quantity}`);
 
-              // Volume margin info is now handled by TradeExecutor
-              if (executionResult.data?.volumeMarginAdded) {
-                console.log(`Volume Margin Added: ${executionResult.data.volumeMarginAdded.percentage}%`);
-                console.log(`Base Margin: ${executionResult.data.volumeMarginAdded.baseMargin.toFixed(2)}`);
-                console.log(`Total Margin: ${executionResult.data.volumeMarginAdded.totalMargin.toFixed(2)}`);
-              }
-
-              console.log('----------------------------------------');
-
-              // Send notification for valid trade
-              await this.notificationService.sendTradeNotification({
-                symbol: trade.symbol,
-                type: trade.type,
-                entry: trade.entry,
-                stop: trade.stop,
-                takeProfits: {
-                  tp1: trade.tp1,
-                  tp2: trade.tp2,
-                  tp3: trade.tp3,
-                  tp4: trade.tp4,
-                  tp5: trade.tp5,
-                  tp6: trade.tp6
-                },
-                validation: validationResult,
-                analysisUrl: trade.url_analysis || '',
-                volume_adds_margin: trade.volume_adds_margin,
-                setup_description: trade.setup_description,
-                volume_required: trade.volume_required,
-                executionResult: executionResult.success && executionResult.data ? {
-                  leverage: executionResult.data.leverage.optimalLeverage,
-                  quantity: executionResult.data.quantity,
-                  entryOrderId: executionResult.data.entryOrder.data.order.orderId,
-                  stopOrderId: executionResult.data.stopOrder.data.order.orderId,
-                  volumeMarginAdded: executionResult.data.volumeMarginAdded
-                } : undefined,
-                executionError: !executionResult.success ? executionResult.message : undefined,
-                interval: trade.interval
-              });
-            } else {
-              throw new Error(`Failed to execute trade:${executionResult.message}`);
+            // Volume margin info is now handled by TradeExecutor
+            if (executionResult.data?.volumeMarginAdded) {
+              console.log(`Volume Margin Added: ${executionResult.data.volumeMarginAdded.percentage}%`);
+              console.log(`Base Margin: ${executionResult.data.volumeMarginAdded.baseMargin.toFixed(2)}`);
+              console.log(`Total Margin: ${executionResult.data.volumeMarginAdded.totalMargin.toFixed(2)}`);
             }
+
+            console.log('----------------------------------------');
+
+            // Send notification for valid trade
+            await this.notificationService.sendTradeNotification({
+              symbol: trade.symbol,
+              type: trade.type,
+              entry: trade.entry,
+              stop: trade.stop,
+              takeProfits: {
+                tp1: trade.tp1,
+                tp2: trade.tp2,
+                tp3: trade.tp3,
+                tp4: trade.tp4,
+                tp5: trade.tp5,
+                tp6: trade.tp6
+              },
+              validation: validationResult,
+              analysisUrl: trade.url_analysis || '',
+              volume_adds_margin: trade.volume_adds_margin,
+              setup_description: trade.setup_description,
+              volume_required: trade.volume_required,
+              executionResult: executionResult.success && executionResult.data ? {
+                leverage: executionResult.data.leverage.optimalLeverage,
+                quantity: executionResult.data.quantity,
+                entryOrderId: executionResult.data.entryOrder.data.order.orderId,
+                stopOrderId: executionResult.data.stopOrder.data.order.orderId,
+                volumeMarginAdded: executionResult.data.volumeMarginAdded
+              } : undefined,
+              executionError: !executionResult.success ? executionResult.message : undefined,
+              interval: trade.interval
+            });
+          } else {
+            throw new Error(`Failed to execute trade:${executionResult.message}`);
           }
+        }
       } catch (error) {
         console.error(`\n❌ Error processing trade #${trades.indexOf(trade) + 1} (${trade.symbol}):`, error);
         console.log('----------------------------------------');
