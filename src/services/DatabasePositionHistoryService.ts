@@ -18,40 +18,34 @@ export class DatabasePositionHistoryService {
                 driver: sqlite3.Database
             });   
             
-            await this.createTables();
-    }
-
-    private async createTables(): Promise<void> {
-        if (!this.db) throw new Error('Database not initialized');
-
-        await this.db.exec(`
-            CREATE TABLE IF NOT EXISTS position_history (
-                positionId TEXT PRIMARY KEY,
-                symbol TEXT NOT NULL,
-                positionSide TEXT NOT NULL,
-                isolated BOOLEAN NOT NULL,
-                closeAllPositions BOOLEAN NOT NULL,
-                positionAmt TEXT NOT NULL,
-                closePositionAmt TEXT NOT NULL,
-                realisedProfit TEXT NOT NULL,
-                netProfit TEXT NOT NULL,
-                avgClosePrice REAL NOT NULL,
-                avgPrice TEXT NOT NULL,
-                leverage INTEGER NOT NULL,
-                positionCommission TEXT NOT NULL,
-                totalFunding TEXT NOT NULL,
-                openTime INTEGER NOT NULL,
-                closeTime INTEGER,
-                updateTime INTEGER
-            )
-        `);
-
-        // Add updateTime column if it doesn't exist (for existing databases)
-        try {
-            await this.db.exec('ALTER TABLE position_history ADD COLUMN updateTime INTEGER');
-        } catch (error) {
-            // Column already exists, ignore error
-        }
+            await this.db.exec(`
+                CREATE TABLE IF NOT EXISTS position_history (
+                    positionId TEXT PRIMARY KEY,
+                    symbol TEXT NOT NULL,
+                    positionSide TEXT NOT NULL,
+                    isolated BOOLEAN NOT NULL,
+                    closeAllPositions BOOLEAN NOT NULL,
+                    positionAmt TEXT NOT NULL,
+                    closePositionAmt TEXT NOT NULL,
+                    realisedProfit TEXT NOT NULL,
+                    netProfit TEXT NOT NULL,
+                    avgClosePrice REAL NOT NULL,
+                    avgPrice TEXT NOT NULL,
+                    leverage INTEGER NOT NULL,
+                    positionCommission TEXT NOT NULL,
+                    totalFunding TEXT NOT NULL,
+                    openTime INTEGER NOT NULL,
+                    closeTime INTEGER,
+                    updateTime INTEGER
+                )
+            `);
+    
+            // Add updateTime column if it doesn't exist (for existing databases)
+            try {
+                await this.db.exec('ALTER TABLE position_history ADD COLUMN updateTime INTEGER');
+            } catch (error) {
+                // Column already exists, ignore error
+            }
     }
 
     public async savePositionHistory(positions: PositionHistory[]): Promise<void> {

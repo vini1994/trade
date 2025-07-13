@@ -67,10 +67,6 @@
                   <div class="col-md-2">
                     <label for="minResult" class="form-label fw-semibold">
                       Min Result ($)
-                      <i class="bi bi-info-circle ms-1" 
-                         data-bs-toggle="tooltip" 
-                         data-bs-placement="top" 
-                         title="Shows trades where the absolute value of the result is ≥ this amount (e.g., 100 shows trades with profit or loss ≥ $100)"></i>
                     </label>
                     <input 
                       type="number" 
@@ -1055,12 +1051,6 @@ const formatDate = (timestamp: number): string => {
 // Lifecycle
 onMounted(() => {
   loadData()
-  
-  // Initialize Bootstrap tooltips if available
-  if (typeof window !== 'undefined' && (window as any).bootstrap) {
-    const tooltipTriggerList = document.querySelectorAll('[data-bs-toggle="tooltip"]')
-    const tooltipList = [...tooltipTriggerList].map(tooltipTriggerEl => new (window as any).bootstrap.Tooltip(tooltipTriggerEl))
-  }
 })
 </script>
 
