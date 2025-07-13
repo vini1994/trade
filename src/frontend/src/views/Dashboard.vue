@@ -517,10 +517,10 @@
                         <td>${{ formatNumber(position.avgClosePrice, 5) }}</td>
                         <td>{{ position.leverage }}x</td>
                         <td>
-                          <span v-if="position.tradeInfo?.found && position.tradeInfo.trade && Math.abs(parseFloat(position.avgPrice) - position.tradeInfo.trade.stop) > 0">
-                            1:{{ (Math.abs(parseFloat(position.avgPrice) - position.avgClosePrice) / Math.abs(parseFloat(position.avgPrice) - position.tradeInfo.trade.stop)).toFixed(2) }}
-                          </span>
-                          <span v-else>-</span>
+                          <span class="fw-semibold">{{ calculateFinancialRR(position) }}</span>
+                          <div class="small text-muted mt-1">
+                            Risk: ${{ formatNumber(calculateRiskAmount(position)) }}
+                          </div>
                         </td>
                         <td>
                           <span 
@@ -590,6 +590,105 @@ interface CostsBySymbol {
  */
 const getEffectiveCloseTime = (position: PositionHistory): number => {
   return position.closeTime || position.updateTime
+}
+
+/**
+ * Calculate the risk amount based on stop loss or margin
+ */
+const calculateRiskAmount = (position: PositionHistory): number => {
+  try {
+    const quantity = parseFloat(position.closePositionAmt)
+    const avgPrice = parseFloat(position.avgPrice)
+    const leverage = position.leverage
+    
+    // Check if we have trade info with stop loss
+    if (position.tradeInfo?.found && position.tradeInfo.trade?.stop) {
+      const stopPrice = position.tradeInfo.trade.stop
+      
+      // Calculate the price difference to stop loss
+      const priceDifference = Math.abs(avgPrice - stopPrice)
+      
+      // Calculate the potential loss in dollars (price difference * quantity)
+      const potentialLoss = priceDifference * quantity
+      
+      // Calculate the margin used (position value / leverage)
+      const positionValue = quantity * avgPrice
+      const marginUsed = positionValue / leverage
+      
+      // Risk is the potential loss (limited by margin used)
+      return Math.min(potentialLoss, marginUsed)
+    } else {
+      // Fallback to margin-based calculation if no stop loss info
+      const positionValue = quantity * avgPrice
+      return positionValue / leverage
+    }
+  } catch (error) {
+    console.error('Error calculating risk amount:', error)
+    return 0
+  }
+}
+
+/**
+ * Calculate financial risk/reward ratio based on stop loss and leverage
+ * Risk = Potential loss based on stop loss distance and leverage
+ * Reward = Net profit from the trade
+ */
+const calculateFinancialRR = (position: PositionHistory): string => {
+  try {
+    const quantity = parseFloat(position.closePositionAmt)
+    const avgPrice = parseFloat(position.avgPrice)
+    const leverage = position.leverage
+    const netProfit = parseFloat(position.netProfit)
+    
+    // Check if we have trade info with stop loss
+    if (position.tradeInfo?.found && position.tradeInfo.trade?.stop) {
+      const stopPrice = position.tradeInfo.trade.stop
+      
+      // Calculate the price difference to stop loss
+      const priceDifference = Math.abs(avgPrice - stopPrice)
+      
+      // Calculate the potential loss in dollars (price difference * quantity)
+      const potentialLoss = priceDifference * quantity
+      
+      // Calculate the margin used (position value / leverage)
+      const positionValue = quantity * avgPrice
+      const marginUsed = positionValue / leverage
+      
+      // Risk is the potential loss (limited by margin used)
+      const risk = Math.min(potentialLoss, marginUsed)
+      
+      // Reward is the net profit
+      const reward = Math.abs(netProfit)
+      
+      // Calculate R:R ratio
+      if (risk > 0 && reward > 0) {
+        const ratio = reward / risk
+        return `1:${ratio.toFixed(2)}`
+      } else if (risk > 0) {
+        return `1:0.00`
+      } else {
+        return '-'
+      }
+    } else {
+      // Fallback to margin-based calculation if no stop loss info
+      const positionValue = quantity * avgPrice
+      const marginUsed = positionValue / leverage
+      const risk = marginUsed
+      const reward = Math.abs(netProfit)
+      
+      if (risk > 0 && reward > 0) {
+        const ratio = reward / risk
+        return `1:${ratio.toFixed(2)}`
+      } else if (risk > 0) {
+        return `1:0.00`
+      } else {
+        return '-'
+      }
+    }
+  } catch (error) {
+    console.error('Error calculating financial R:R:', error)
+    return '-'
+  }
 }
 
 // Reactive data
