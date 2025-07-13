@@ -133,8 +133,22 @@ export class PositionHistoryController {
 
     public async getAvailableSymbols(req: Request, res: Response): Promise<void> {
         try {
+            console.log('Fetching available symbols...');
             const positions = await this.positionHistoryService.getPositionHistory('ALL', undefined, undefined, 1, 100000);
+            console.log(`Retrieved ${positions.length} positions for symbol extraction`);
+            
+            if (!positions || positions.length === 0) {
+                console.log('No positions found, returning empty symbols array');
+                res.json({
+                    success: true,
+                    data: []
+                });
+                return;
+            }
+            
             const symbols = [...new Set(positions.map(p => p.symbol))].sort();
+            console.log(`Extracted ${symbols.length} unique symbols:`, symbols);
+            
             res.json({
                 success: true,
                 data: symbols
@@ -143,7 +157,8 @@ export class PositionHistoryController {
             console.error('Error fetching available symbols:', error);
             res.status(500).json({
                 success: false,
-                error: 'Failed to fetch available symbols'
+                error: 'Failed to fetch available symbols',
+                details: error instanceof Error ? error.message : 'Unknown error'
             });
         }
     }

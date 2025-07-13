@@ -851,24 +851,58 @@ const costsBySymbol = computed(() => {
 const loadAvailableSymbols = async () => {
   try {
     const response = await fetch('/api/position-history/symbols')
-    const result = await response.json()
+    
+    if (!response.ok) {
+      console.error('HTTP error loading symbols:', response.status, response.statusText)
+      return
+    }
+    
+    const text = await response.text()
+    if (!text) {
+      console.warn('Empty response from symbols endpoint')
+      availableSymbols.value = []
+      return
+    }
+    
+    const result = await JSON.parse(text)
     if (result.success) {
-      availableSymbols.value = result.data
+      availableSymbols.value = result.data || []
+    } else {
+      console.error('API error loading symbols:', result.error)
+      availableSymbols.value = []
     }
   } catch (error) {
     console.error('Error loading symbols:', error)
+    availableSymbols.value = []
   }
 }
 
 const loadAvailableSetupDescriptions = async () => {
   try {
     const response = await fetch('/api/position-history/setup-descriptions')
-    const result = await response.json()
+    
+    if (!response.ok) {
+      console.error('HTTP error loading setup descriptions:', response.status, response.statusText)
+      return
+    }
+    
+    const text = await response.text()
+    if (!text) {
+      console.warn('Empty response from setup descriptions endpoint')
+      availableSetupDescriptions.value = []
+      return
+    }
+    
+    const result = await JSON.parse(text)
     if (result.success) {
-      availableSetupDescriptions.value = result.data
+      availableSetupDescriptions.value = result.data || []
+    } else {
+      console.error('API error loading setup descriptions:', result.error)
+      availableSetupDescriptions.value = []
     }
   } catch (error) {
     console.error('Error loading setup descriptions:', error)
+    availableSetupDescriptions.value = []
   }
 }
 
