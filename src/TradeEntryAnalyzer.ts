@@ -84,6 +84,17 @@ export class TradeEntryAnalyzer {
             // Get the most recent close price
             const currentCandle = klineData[0];
             const currentClose = parseFloat(currentCandle.close);
+
+            // New validation: currentClose must not surpass tp1
+            if ((trade.type === 'LONG' && currentClose > trade.tp1) || (trade.type === 'SHORT' && currentClose < trade.tp1)) {
+                return {
+                    canEnter: false,
+                    currentClose,
+                    hasClosePriceBeforeEntry: false,
+                    warning: true,
+                    message: `Current close (${currentClose}) has surpassed the first take profit (${trade.tp1})`
+                };
+            }
             
             // Check if entry condition is met first
             const entryConditionMet = this.isEntryConditionMet(currentCandle, trade.entry, trade.type);
