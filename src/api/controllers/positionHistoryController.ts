@@ -28,7 +28,7 @@ export class PositionHistoryController {
     /**
      * Filters positions by minimum result value
      * @param positions Array of positions to filter
-     * @param minResult Minimum result value (positive for profit, negative for loss)
+     * @param minResult Minimum result value (absolute value comparison)
      * @returns Filtered positions
      */
     private filterByMinResult(positions: any[], minResult: string | undefined): any[] {
@@ -43,13 +43,8 @@ export class PositionHistoryController {
 
         return positions.filter(position => {
             const netProfit = parseFloat(position.netProfit);
-            if (minResultValue >= 0) {
-                // For positive values: show trades with profit >= minResult
-                return netProfit >= minResultValue;
-            } else {
-                // For negative values: show trades with loss <= minResult (e.g., -100 shows trades losing $100 or less)
-                return netProfit <= minResultValue;
-            }
+            // Use absolute value of netProfit and compare with minResultValue
+            return Math.abs(netProfit) >= minResultValue;
         });
     }
 

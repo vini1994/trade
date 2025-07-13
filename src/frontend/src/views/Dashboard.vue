@@ -70,7 +70,7 @@
                       <i class="bi bi-info-circle ms-1" 
                          data-bs-toggle="tooltip" 
                          data-bs-placement="top" 
-                         title="Positive values: show trades with profit ≥ this amount. Negative values: show trades with loss ≤ this amount (e.g., -100 shows trades losing $100 or less)"></i>
+                         title="Shows trades where the absolute value of the result is ≥ this amount (e.g., 100 shows trades with profit or loss ≥ $100)"></i>
                     </label>
                     <input 
                       type="number" 
@@ -82,7 +82,7 @@
                       step="0.01"
                     >
                     <div class="form-text small text-muted">
-                      Positive: min profit, Negative: max loss
+                      Shows trades with absolute result ≥ this amount
                     </div>
                   </div>
                   <div class="col-md-2">
