@@ -81,7 +81,7 @@ export class BingXOrderExecutor {
             price: price.toString(),
             stopPrice: stopPrice.toString(),
             quantity: quantity.toString(),
-            clientOrderId: `NBMEMBERS_${tradeId}_${timestamp}`,
+            clientOrderId: `NBMEMBERS_${tradeId?tradeId:'0'}_${timestamp}`,
         };
 
         if (reduceOnly) {
@@ -102,6 +102,11 @@ export class BingXOrderExecutor {
 
         try {
             const response = await this.apiClient.post<BingXOrderResponse>(path, params);
+
+            // Check if the response indicates an error
+            if (response && typeof response === 'object' && 'code' in response && response.code !== 0) {
+                throw new Error(`API Error: ${response.msg} (code: ${response.code}) symbol: ${normalizedPair} side: ${side} positionSide: ${positionSide} type: ${type} price: ${price} stopPrice: ${stopPrice} quantity: ${quantity} clientOrderId: ${params.clientOrderId}`);
+            }
             
             // Save log if tradeId is provided
             if (tradeId) {
@@ -425,8 +430,8 @@ export class BingXOrderExecutor {
                 tradeRecord.id
             );
 
-            // Add 1 second delay before checking position
-            await new Promise(resolve => setTimeout(resolve, 1000));
+            // Add 1/2 second delay before checking position
+            await new Promise(resolve => setTimeout(resolve, 500));
 
             const { hasPosition: hasPositionPost, position, message: messagePost } = await this.positionValidator.hasOpenPosition(trade.symbol, trade.type);
             
