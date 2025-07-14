@@ -67,6 +67,9 @@
                   <div class="col-md-2">
                     <label for="minResult" class="form-label fw-semibold">
                       Min Result ($)
+                      <span class="form-text small text-muted">
+                      Shows trades with absolute result ≥ this amount
+                      </span>
                     </label>
                     <input 
                       type="number" 
@@ -77,9 +80,6 @@
                       placeholder="0.00"
                       step="0.01"
                     >
-                    <div class="form-text small text-muted">
-                      Shows trades with absolute result ≥ this amount
-                    </div>
                   </div>
                   <div class="col-md-2">
                     <div class="d-flex gap-2">
