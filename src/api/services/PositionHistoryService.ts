@@ -107,13 +107,40 @@ export class PositionHistoryService {
                 };
             }
 
-            const matchingTradesALL = allTrades.filter((trade: any) => {
+            const matchingTradesBefore = allTrades.filter((trade: any) => {
                 const tradeType = trade.type;
                 const positionSide = position.positionSide;
                 if (trade.symbol !== denormalizedPositionSymbol) return false;
                 if (tradeType !== positionSide) return false;
                 const tradeCreatedAt = new Date(trade.createdAt);
                 return tradeCreatedAt <= endTime;
+            });
+            if (matchingTradesBefore.length > 0) {
+                let bestMatch = matchingTradesBefore[0];
+                let smallestTimeDiff = Math.abs(new Date(bestMatch.createdAt).getTime() - positionOpenTime.getTime());
+                for (const trade of matchingTradesBefore) {
+                    const timeDiff = Math.abs(new Date(trade.createdAt).getTime() - positionOpenTime.getTime());
+                    if (timeDiff < smallestTimeDiff) {
+                        smallestTimeDiff = timeDiff;
+                        bestMatch = trade;
+                    }
+                }
+                return {
+                    found: true,
+                    source: 'trade',
+                    trade: bestMatch as TradeRecord,
+                    timeDifference: Math.round(smallestTimeDiff / 1000 / 60),
+                    message: `Found matching trade (ID: ${bestMatch.id}) created ${Math.round(smallestTimeDiff / 1000 / 60)} minutes ${new Date(bestMatch.createdAt) < positionOpenTime ? 'before' : 'after'} position opening`,
+                    error: null
+                };
+            }
+
+            const matchingTradesALL = allTrades.filter((trade: any) => {
+                const tradeType = trade.type;
+                const positionSide = position.positionSide;
+                if (trade.symbol !== denormalizedPositionSymbol) return false;
+                if (tradeType !== positionSide) return false;
+                return true;
             });
             if (matchingTradesALL.length > 0) {
                 let bestMatch = matchingTradesALL[0];
