@@ -475,7 +475,7 @@
                 <div class="d-flex align-items-center gap-2">
                   <span class="text-white-50 small">Showing {{ positions.length }} positions</span>
                   <router-link to="/position-history/new" class="btn btn-success btn-sm ms-2">
-                    <i class="bi bi-plus-lg"></i> Novo
+                    <i class="bi bi-plus-lg"></i> Add
                   </router-link>
                 </div>
               </div>

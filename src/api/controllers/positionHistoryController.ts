@@ -270,4 +270,20 @@ export class PositionHistoryController {
             res.status(500).json({ success: false, error: 'Failed to update position history' });
         }
     }
+
+    public async getPositionHistoryById(req: Request, res: Response): Promise<void> {
+        try {
+            const { positionId } = req.params;
+            const positions = await this.positionHistoryService.getPositionHistory('ALL', undefined, undefined, 1, 100000);
+            const position = positions.find(p => p.positionId === positionId);
+            if (!position) {
+                res.status(404).json({ success: false, error: 'Position not found' });
+                return;
+            }
+            res.json(position);
+        } catch (error) {
+            console.error('Error fetching position history by id:', error);
+            res.status(500).json({ success: false, error: 'Failed to fetch position history by id' });
+        }
+    }
 } 
