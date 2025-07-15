@@ -70,8 +70,9 @@ export class PositionHistoryController {
 
             if (setupDescription && setupDescription !== 'ALL') {
                 positionsWithTradeInfo = positionsWithTradeInfo.filter(position => 
+                    (!position.tradeInfo?.found) ||( 
                     position.tradeInfo?.found && 
-                    position.tradeInfo.trade?.setup_description === setupDescription
+                    position.tradeInfo.trade?.setup_description === setupDescription)
                 );
             }
 
@@ -108,8 +109,9 @@ export class PositionHistoryController {
 
             if (setupDescription && setupDescription !== 'ALL') {
                 positionsWithTradeInfo = positionsWithTradeInfo.filter(position => 
-                    position.tradeInfo?.found && 
-                    position.tradeInfo.trade?.setup_description === setupDescription
+                    (!position.tradeInfo?.found) ||( 
+                        position.tradeInfo?.found && 
+                        position.tradeInfo.trade?.setup_description === setupDescription)
                 );
             }
 
@@ -205,8 +207,9 @@ export class PositionHistoryController {
             let positionsWithTradeInfo = await this.positionHistoryService.enrichPositionsWithTradeInfo(positions);
             if (setupDescription && setupDescription !== 'ALL') {
                 positionsWithTradeInfo = positionsWithTradeInfo.filter(position => 
-                    position.tradeInfo?.found && 
-                    position.tradeInfo.trade?.setup_description === setupDescription
+                    (!position.tradeInfo?.found) ||( 
+                        position.tradeInfo?.found && 
+                        position.tradeInfo.trade?.setup_description === setupDescription)
                 );
             }
 
