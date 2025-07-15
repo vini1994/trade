@@ -86,7 +86,7 @@
             <input v-model.number="positionHistoryData.closeTime" type="number" class="form-control" required />
           </div>
           <div class="text-end">
-            <router-link to="/" class="btn btn-secondary me-2">Cancel</router-link>
+            <router-link to="/dashboard" class="btn btn-secondary me-2">Cancel</router-link>
             <button type="submit" class="btn btn-primary">Save</button>
           </div>
         </form>
