@@ -207,24 +207,7 @@
                       <div class="text-muted small">Avg Leverage</div>
                     </div>
                   </div>
-                  <div class="col-6">
-                    <div class="text-center">
-                      <div class="h4 text-info fw-bold">${{ formatNumber(stats.tradeMetrics?.avgEntryPrice || 0) }}</div>
-                      <div class="text-muted small">Avg Entry</div>
-                    </div>
-                  </div>
-                  <div class="col-6">
-                    <div class="text-center">
-                      <div class="h4 text-warning fw-bold">${{ formatNumber(stats.tradeMetrics?.avgStopPrice || 0) }}</div>
-                      <div class="text-muted small">Avg Stop</div>
-                    </div>
-                  </div>
-                  <div class="col-6">
-                    <div class="text-center">
-                      <div class="h4 text-success fw-bold">${{ formatNumber(stats.tradeMetrics?.avgTakeProfit1 || 0) }}</div>
-                      <div class="text-muted small">Avg TP1</div>
-                    </div>
-                  </div>
+                  <!-- Removidos avgEntryPrice, avgStopPrice, avgTakeProfit1 -->
                 </div>
                 
                 <!-- Best/Worst Trades -->
@@ -675,7 +658,7 @@ const calculateFinancialRR = (position: PositionHistory): string => {
       const risk = Math.min(potentialLoss, marginUsed)
       
       // Reward is the net profit
-      const reward = Math.abs(netProfit)
+      const reward = netProfit
       
       // Calculate R:R ratio
       if (risk > 0 && reward > 0) {
@@ -691,7 +674,7 @@ const calculateFinancialRR = (position: PositionHistory): string => {
       const positionValue = quantity * avgPrice
       const marginUsed = positionValue / leverage
       const risk = marginUsed
-      const reward = Math.abs(netProfit)
+      const reward = netProfit
       
       if (risk > 0 && reward > 0) {
         const ratio = reward / risk

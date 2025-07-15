@@ -3,6 +3,7 @@ import { DatabasePositionHistoryService } from '../../services/DatabasePositionH
 import * as fs from 'fs';
 import * as path from 'path';
 import { TradeRecord, PositionHistory, TradeInfo  } from '../../utils/types';
+import e from 'express';
 
 export class PositionHistoryService {
     private tradeDatabase: TradeDatabase;
@@ -482,18 +483,13 @@ export class PositionHistoryService {
                 tradeAnalysis: {
                     avgLeverage: 0,
                     leverageDistribution: {},
-                    avgQuantity: 0,
-                    quantityDistribution: {},
-                    avgEntryPrice: 0,
-                    avgStopPrice: 0,
-                    avgTakeProfit1: 0
+                    // Removido: avgQuantity, quantityDistribution, avgEntryPrice, avgStopPrice, avgTakeProfit1
                 },
                 symbolAnalysis: {},
                 sideAnalysis: {}
             };
         }
-
-        const tradesWithInfo = positions.filter(p => p.tradeInfo?.found);
+        const tradesWithInfo = positions.filter(position => position.tradeInfo && position.tradeInfo?.trade && position.tradeInfo?.found);
         const profits = positions.map(p => parseFloat(p.netProfit));
         const totalProfit = profits.reduce((sum, p) => p > 0 ? sum + p : sum, 0);
         const totalLoss = profits.reduce((sum, p) => p < 0 ? sum + Math.abs(p) : sum, 0);
@@ -504,10 +500,10 @@ export class PositionHistoryService {
         const rewards: number[] = [];
         const riskRewardRatios: number[] = [];
         const leverages: number[] = [];
-        const quantities: number[] = [];
-        const entryPrices: number[] = [];
-        const stopPrices: number[] = [];
-        const takeProfit1s: number[] = [];
+        // Removido: const quantities: number[] = [];
+        // Removido: const entryPrices: number[] = [];
+        // Removido: const stopPrices: number[] = [];
+        // Removido: const takeProfit1s: number[] = [];
         // Novo: array local para R:R positivos
         const positiveRRs: number[] = [];
 
@@ -516,43 +512,55 @@ export class PositionHistoryService {
         const rewardDistribution: { [key: string]: number } = {};
         const rrDistribution: { [key: string]: number } = {};
         const leverageDistribution: { [key: string]: number } = {};
-        const quantityDistribution: { [key: string]: number } = {};
+        // Removido: const quantityDistribution: { [key: string]: number } = {};
 
         // Análise por símbolo e lado
         const symbolAnalysis: { [key: string]: any } = {};
         const sideAnalysis: { [key: string]: any } = {};
 
-        tradesWithInfo.forEach(position => {
-            const trade = position.tradeInfo.trade;
-            const netProfit = parseFloat(position.netProfit);
 
-            // Calcular risco financeiro (margem arriscada)
+        positions.forEach(position => {
+
+            const netProfit = parseFloat(position.netProfit);
             const entryPrice = parseFloat(position.avgPrice);
-            const stopPrice = trade.stop;
-            const quantity = trade.quantity;
-            const leverage = trade.leverage;
-            const risk = leverage > 0 ? Math.abs(entryPrice - stopPrice) * quantity / leverage : 0;
+            const quantity = parseFloat(position.positionAmt);
+            const leverage = position.leverage;
+            let risk = 0.0
+            if (position.tradeInfo && position.tradeInfo?.trade && position.tradeInfo?.found) {
+                const trade = position.tradeInfo.trade;
+                
+                // Calcular risco financeiro (margem arriscada)
+                const stopPrice = trade.stop;
+                risk = leverage > 0 ? Math.abs(entryPrice - stopPrice) * quantity / leverage : 0;
+            }else{
+                const positionValue = quantity * entryPrice
+                const marginUsed = positionValue / leverage
+                risk = marginUsed
+            }
+            
             risks.push(risk);
 
             // Calcular retorno financeiro (profit em margem)
-            const reward = Math.abs(netProfit);
-            rewards.push(reward);
-
+            const reward = netProfit;
+            if (reward > 0) {
+                rewards.push(reward);
+            }
+            
             // Calcular risco-retorno
-            if (risk > 0) {
+            if ((reward > 0) && (risk > 0)) {
                 const riskRewardRatio = reward / risk;
                 riskRewardRatios.push(riskRewardRatio);
                 positiveRRs.push(riskRewardRatio);
+            }else if (risk > 0) {
+                const riskRewardRatio = reward / risk;
+                riskRewardRatios.push(riskRewardRatio);
             }
 
             // Acumular dados para distribuições
             leverages.push(leverage);
-            quantities.push(quantity);
-            entryPrices.push(entryPrice);
-            stopPrices.push(stopPrice);
-            if (trade.tp1) {
-                takeProfit1s.push(trade.tp1);
-            }
+            // Removido: entryPrices.push(entryPrice);
+            // Removido: stopPrices.push(stopPrice);
+            // Removido: if (trade.tp1) { takeProfit1s.push(trade.tp1); }
 
             // Análise por símbolo
             if (!symbolAnalysis[position.symbol]) {
@@ -601,7 +609,11 @@ export class PositionHistoryService {
             if (risk > 0) {
                 sideAnalysis[position.positionSide].rrRatios.push(reward / risk);
             }
+
+
         });
+
+        
 
         // Calcular médias para símbolos e lados
         Object.keys(symbolAnalysis).forEach(symbol => {
@@ -645,11 +657,7 @@ export class PositionHistoryService {
             leverageDistribution[key] = (leverageDistribution[key] || 0) + 1;
         });
 
-        quantities.forEach(quantity => {
-            const range = Math.floor(quantity * 100) / 100;
-            const key = `${range}-${range + 0.01}`;
-            quantityDistribution[key] = (quantityDistribution[key] || 0) + 1;
-        });
+        // Removido: cálculo de quantityDistribution
 
         // Calcular métricas de performance
         const avgReturn = profits.reduce((sum, profit) => sum + profit, 0) / profits.length;
@@ -728,12 +736,8 @@ export class PositionHistoryService {
             },
             tradeAnalysis: {
                 avgLeverage: leverages.length > 0 ? Math.round(leverages.reduce((a, b) => a + b, 0) / leverages.length * 100) / 100 : 0,
-                leverageDistribution,
-                avgQuantity: quantities.length > 0 ? Math.round(quantities.reduce((a, b) => a + b, 0) / quantities.length * 100) / 100 : 0,
-                quantityDistribution,
-                avgEntryPrice: entryPrices.length > 0 ? Math.round(entryPrices.reduce((a, b) => a + b, 0) / entryPrices.length * 100) / 100 : 0,
-                avgStopPrice: stopPrices.length > 0 ? Math.round(stopPrices.reduce((a, b) => a + b, 0) / stopPrices.length * 100) / 100 : 0,
-                avgTakeProfit1: takeProfit1s.length > 0 ? Math.round(takeProfit1s.reduce((a, b) => a + b, 0) / takeProfit1s.length * 100) / 100 : 0
+                leverageDistribution
+                // Removido: avgQuantity, quantityDistribution, avgEntryPrice, avgStopPrice, avgTakeProfit1
             },
             symbolAnalysis,
             sideAnalysis
