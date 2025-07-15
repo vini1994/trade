@@ -621,7 +621,7 @@ export class PositionHistoryService {
             analysis.avgRisk = analysis.risks.length > 0 ? analysis.risks.reduce((a: number, b: number) => a + b, 0) / analysis.risks.length : 0;
             analysis.avgReward = analysis.rewards.length > 0 ? analysis.rewards.reduce((a: number, b: number) => a + b, 0) / analysis.rewards.length : 0;
             analysis.avgRR = analysis.rrRatios.length > 0 ? analysis.rrRatios.reduce((a: number, b: number) => a + b, 0) / analysis.rrRatios.length : 0;
-            analysis.avgLeverage = leverages.filter((_, i) => tradesWithInfo[i].symbol === symbol).reduce((a: number, b: number) => a + b, 0) / analysis.totalTrades;
+            analysis.avgLeverage = leverages.filter((_, i) => positions[i].symbol === symbol).reduce((a: number, b: number) => a + b, 0) / analysis.totalTrades;
         });
 
         Object.keys(sideAnalysis).forEach(side => {
@@ -629,7 +629,7 @@ export class PositionHistoryService {
             analysis.avgRisk = analysis.risks.length > 0 ? analysis.risks.reduce((a: number, b: number) => a + b, 0) / analysis.risks.length : 0;
             analysis.avgReward = analysis.rewards.length > 0 ? analysis.rewards.reduce((a: number, b: number) => a + b, 0) / analysis.rewards.length : 0;
             analysis.avgRR = analysis.rrRatios.length > 0 ? analysis.rrRatios.reduce((a: number, b: number) => a + b, 0) / analysis.rrRatios.length : 0;
-            analysis.avgLeverage = leverages.filter((_, i) => tradesWithInfo[i].positionSide === side).reduce((a: number, b: number) => a + b, 0) / analysis.totalTrades;
+            analysis.avgLeverage = leverages.filter((_, i) => positions[i].positionSide === side).reduce((a: number, b: number) => a + b, 0) / analysis.totalTrades;
         });
 
         // Calcular distribuições
