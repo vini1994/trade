@@ -249,6 +249,10 @@ export class PositionHistoryService {
         }
     }
 
+    public async savePositionHistory(positions: PositionHistory[]): Promise<void> {
+        return this.dbService.savePositionHistory(positions);
+    }
+
     public calculateStats(positions: PositionHistory[]): any {
         if (positions.length === 0) {
             return {

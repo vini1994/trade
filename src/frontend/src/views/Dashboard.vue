@@ -472,8 +472,11 @@
             <div class="card border-0 shadow">
               <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
                 <h5 class="card-title mb-0 fw-semibold">Position History</h5>
-                <div class="d-flex align-items-center">
+                <div class="d-flex align-items-center gap-2">
                   <span class="text-white-50 small">Showing {{ positions.length }} positions</span>
+                  <router-link to="/position-history/new" class="btn btn-success btn-sm ms-2">
+                    <i class="bi bi-plus-lg"></i> Novo
+                  </router-link>
                 </div>
               </div>
               <div class="card-body p-0">
@@ -494,6 +497,7 @@
                         <th>Trade Info</th>
                         <th>Open Date</th>
                         <th>Close Date</th>
+                        <th>Edit</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -552,6 +556,11 @@
                         </td>
                         <td>{{ formatDate(position.openTime) }}</td>
                         <td>{{ formatDate(getEffectiveCloseTime(position)) }}</td>
+                        <td>
+                          <router-link :to="`/position-history/edit/${position.positionId}`" class="btn btn-sm btn-outline-primary" title="Edit Position">
+                            <i class="bi bi-pencil"></i>
+                          </router-link>
+                        </td>
                       </tr>
                     </tbody>
                   </table>

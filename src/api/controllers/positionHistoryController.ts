@@ -246,4 +246,28 @@ export class PositionHistoryController {
             });
         }
     }
+
+    public async createPositionHistory(req: Request, res: Response): Promise<void> {
+        try {
+            const position: any = req.body;
+            await this.positionHistoryService.savePositionHistory([position]);
+            res.status(201).json({ success: true, message: 'Position history created successfully' });
+        } catch (error) {
+            console.error('Error creating position history:', error);
+            res.status(500).json({ success: false, error: 'Failed to create position history' });
+        }
+    }
+
+    public async updatePositionHistory(req: Request, res: Response): Promise<void> {
+        try {
+            const { positionId } = req.params;
+            const position: any = req.body;
+            position.positionId = positionId;
+            await this.positionHistoryService.savePositionHistory([position]);
+            res.json({ success: true, message: 'Position history updated successfully' });
+        } catch (error) {
+            console.error('Error updating position history:', error);
+            res.status(500).json({ success: false, error: 'Failed to update position history' });
+        }
+    }
 } 
