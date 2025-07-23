@@ -68,7 +68,8 @@ export class BingXOrderExecutor {
         stopPrice: number,
         quantity: number,
         tradeId?: number,
-        reduceOnly?: boolean
+        reduceOnly?: boolean,
+        positionId?: string
     ): Promise<BingXOrderResponse> {
         const normalizedPair = normalizeSymbolBingX(pair);
         const path = '/openApi/swap/v2/trade/order';
@@ -82,6 +83,7 @@ export class BingXOrderExecutor {
             stopPrice: stopPrice.toString(),
             quantity: quantity.toString(),
             clientOrderId: `NBMEMBERS_${tradeId?tradeId:'0'}_${timestamp}`,
+            positionId: positionId
         };
 
         if (reduceOnly) {
@@ -89,7 +91,7 @@ export class BingXOrderExecutor {
         }
 
         // Add activationPrice for TRIGGER_LIMIT orders
-        if (type === 'TRIGGER_LIMIT') {
+        if ((type === 'TRIGGER_LIMIT') || (type === 'STOP')) {
             const priceNum = parseFloat(price.toString());
             if (positionSide === 'LONG') {
                 // For LONG positions, activation price should be slightly below the target price
@@ -137,7 +139,8 @@ export class BingXOrderExecutor {
         quantity: number,
         price: number,
         activationPrice: number,
-        tradeId?: number
+        tradeId?: number,
+        positionId?: string
     ): Promise<BingXOrderResponse> {
         const normalizedPair = normalizeSymbolBingX(pair);
         const path = '/openApi/swap/v2/trade/order';
@@ -152,6 +155,7 @@ export class BingXOrderExecutor {
             price: price.toString(),
             activationPrice: activationPrice.toString(),
             clientOrderId: `NBMEMBERS_${tradeId}_${timestamp}`,
+            positionId: positionId
         };
 
         try {
@@ -220,7 +224,7 @@ export class BingXOrderExecutor {
         }
     }
 
-    private async placeTakeProfitOrders(trade: Trade, quantity: number, tradeId: number): Promise<BingXOrderResponse[]> {
+    private async placeTakeProfitOrders(trade: Trade, quantity: number, tradeId: number, positionId?: string): Promise<BingXOrderResponse[]> {
         const tpOrders: BingXOrderResponse[] = [];
         const takeProfits = [
             { level: 1, price: trade.tp1 },
@@ -241,7 +245,8 @@ export class BingXOrderExecutor {
                     quantity,
                     trade.entry, // Use entry price as activation price
                     trade.entry,
-                    tradeId
+                    tradeId,
+                    positionId
                 )
             );
             return tpOrders;
@@ -306,7 +311,9 @@ export class BingXOrderExecutor {
                         tp.price!,
                         tp.price!,
                         tpQuantity,
-                        tradeId
+                        tradeId,
+                        undefined,
+                        positionId
                     )
                 );
                 remainingQuantity -= tpQuantity;
@@ -419,16 +426,52 @@ export class BingXOrderExecutor {
             );
 
             // Place entry order (MARKET)
-            const entryOrder = await this.placeOrder(
-                trade.symbol,
-                trade.type === 'LONG' ? 'BUY' : 'SELL',
-                trade.type,
-                'MARKET',
-                0, // No price for MARKET orders
-                0,
-                quantity,
-                tradeRecord.id
-            );
+            let entryOrder: BingXOrderResponse;
+            try {
+                entryOrder = await this.placeOrder(
+                    trade.symbol,
+                    trade.type === 'LONG' ? 'BUY' : 'SELL',
+                    trade.type,
+                    'MARKET',
+                    0, // No price for MARKET orders
+                    0,
+                    quantity,
+                    tradeRecord.id
+                );
+            } catch (error: any) {
+                // Handle max position value error
+                const msg = error?.message || '';
+                const maxPosMatch = msg.match(/The maximum position value for this leverage is ([\d.]+) USDT.*code: 80001/);
+                if (maxPosMatch) {
+                    const maxPositionValue = parseFloat(maxPosMatch[1]);
+                    // Recalculate the maximum allowed leverage for the desired quantity
+                    const normalizedPair = normalizeSymbolBingX(trade.symbol);
+                    const currentPrice = await getPairPrice(normalizedPair, this.apiClient);
+                    let newLeverage = Math.floor(maxPositionValue / (currentPrice * quantity));
+                    if (newLeverage < 1) {
+                        throw new Error(`Could not recalculate the minimum allowed leverage for position value: ${maxPositionValue} USDT, current price: ${currentPrice} and quantity: ${quantity}`);
+                    }
+                    console.warn(`Adjusting leverage to ${newLeverage}x due to the max position value limit of ${maxPositionValue} USDT for this quantity (${quantity}).`);
+                    // Set the new leverage
+                    await this.leverageCalculator.setLeverage(trade.symbol, newLeverage, trade.type);
+                    // Update leverageInfo and tradeRecord
+                    leverageInfo.optimalLeverage = newLeverage;
+                    await this.tradeDatabase.updateLeverage(tradeRecord.id, newLeverage);
+                    // Retry with the same quantity
+                    entryOrder = await this.placeOrder(
+                        trade.symbol,
+                        trade.type === 'LONG' ? 'BUY' : 'SELL',
+                        trade.type,
+                        'MARKET',
+                        0,
+                        0,
+                        quantity,
+                        tradeRecord.id
+                    );
+                } else {
+                    throw error;
+                }
+            }
 
             // Add 1/2 second delay before checking position
             await new Promise(resolve => setTimeout(resolve, 500));
@@ -456,11 +499,13 @@ export class BingXOrderExecutor {
                 trade.stop,
                 trade.stop,
                 quantity,
-                tradeRecord.id
+                tradeRecord.id,
+                undefined,
+                position?.positionId
             );
 
             // Place take profit orders based on the scenario
-            const tpOrders = await this.placeTakeProfitOrders(trade, quantity, tradeRecord.id);
+            const tpOrders = await this.placeTakeProfitOrders(trade, quantity, tradeRecord.id, position?.positionId);
 
             // Update trade record with actual order IDs
             await this.tradeDatabase.updateOrderIds(tradeRecord.id, {

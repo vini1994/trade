@@ -323,6 +323,14 @@ export class TradeDatabase {
         }
     }
 
+    public async updateLeverage(id: number, leverage: number): Promise<void> {
+        const now = new Date().toISOString();
+        await this.db.run(
+            'UPDATE trades SET leverage = ?, updatedAt = ? WHERE id = ?',
+            [leverage, now, id]
+        );
+    }
+
     public async saveOrderDetails(
         tradeId: number,
         orderId: string,

@@ -4,6 +4,10 @@ import { BingXOrderExecutor } from './BingXOrderExecutor';
 import { MonitoredPosition } from './utils/types';
 import { normalizeSymbolBingX } from './utils/bingxUtils';
 import * as dotenv from 'dotenv';
+import { BingXDataService } from './BingXDataService';
+import { StopLossUpdater } from './StopLossUpdater';
+import { NotificationService } from './NotificationService';
+
 
 // Load environment variables
 dotenv.config();
@@ -43,6 +47,9 @@ export class TradeOrderProcessor {
     private readonly orderExecutor: BingXOrderExecutor;
     private readonly limitOrderFee: number;
     private readonly marketOrderFee: number;
+    private readonly dataService: BingXDataService;
+    private notificationService: NotificationService;
+    private readonly stopLossUpdater: StopLossUpdater;
 
     constructor() {
         this.tradeDatabase = new TradeDatabase();
@@ -50,6 +57,9 @@ export class TradeOrderProcessor {
         this.orderExecutor = new BingXOrderExecutor();
         this.limitOrderFee = parseFloat(process.env.BINGX_LIMIT_ORDER_FEE || '0.0002');
         this.marketOrderFee = parseFloat(process.env.BINGX_MARKET_ORDER_FEE || '0.0005');
+        this.dataService = new BingXDataService();
+        this.notificationService = new NotificationService();
+        this.stopLossUpdater = new StopLossUpdater(this.orderExecutor, this.notificationService);
     }
 
     private getPositionKey(symbol: string, positionSide: 'LONG' | 'SHORT'): string {
@@ -58,34 +68,100 @@ export class TradeOrderProcessor {
     }
 
     public async processTrades(monitoredPositions: Map<string, MonitoredPosition>): Promise<void> {
-        try {
+        // Get all open trades from the database
+        const openTrades = await this.tradeDatabase.getOpenTrades();
+        console.log(`Found ${openTrades.length} open trades to process`);
 
-            // Get all open trades from the database
-            const openTrades = await this.tradeDatabase.getOpenTrades();
-            console.log(`Found ${openTrades.length} open trades to process`);
-
-            for (const trade of openTrades) {
-            
+        for (const trade of openTrades) {
+            try {
+                const positionKey = this.getPositionKey(trade.symbol, trade.type);
+                let monitoredPosition = null;
                 if (monitoredPositions.size !== 0) {
                     // Check if trade has a monitored position using both symbol and positionSide
-                    const positionKey = this.getPositionKey(trade.symbol, trade.type);
-                    const monitoredPosition = monitoredPositions.get(positionKey);
-                    
+                    monitoredPosition = monitoredPositions.get(positionKey);
                     if (!monitoredPosition) {
                         console.log(`No monitored position found for trade ${trade.id} (${trade.symbol} ${trade.type}), cancelling orders and closing trade`);
                         await this.cancelAndCloseTrade(trade);
-                        continue;
                     }
-
                 }
 
-
-                await this.processTrade(trade);
+                const tp1IsFilled = await this.processTrade(trade);
+                // Se TP1 foi preenchido, monitora e atualiza stop loss
+                if (tp1IsFilled === true && monitoredPositions.size !== 0) {
+                    if (monitoredPosition) {
+                        const currentPrice = await this.dataService.getSymbolPrice(trade.symbol);
+                        const entryPrice = monitoredPosition.entryPrice ?? parseFloat(monitoredPosition.position.avgPrice);
+                        const currentStopPrice = monitoredPosition.stopLossOrder ? parseFloat(monitoredPosition.stopLossOrder.stopPrice) : undefined;
+                        const positionSide = monitoredPosition.position.positionSide;
+                        const risk = Math.abs(entryPrice - (currentStopPrice ?? entryPrice));
+                        const reward = Math.abs(currentPrice - entryPrice);
+                        const breakevenData = StopLossUpdater.calculateBreakeven(
+                            entryPrice,
+                            parseFloat(monitoredPosition.position.positionAmt),
+                            positionSide,
+                            this.marketOrderFee,
+                            this.limitOrderFee
+                        );
+                        if (
+                            typeof currentStopPrice !== 'undefined' &&
+                            breakevenData !== null
+                        ) {
+                            await this.stopLossUpdater.updateStopLossIfNeeded(
+                                monitoredPosition,
+                                currentPrice,
+                                entryPrice,
+                                currentStopPrice,
+                                positionSide,
+                                risk,
+                                reward,
+                                breakevenData
+                            );
+                        }
+                    }
+                }
+            } catch (error) {
+                console.error(`Erro ao processar trade ${trade.id}:`, error);
+                await this.notificationService.sendTradeNotification({
+                    symbol: trade.symbol,
+                    type: trade.type,
+                    entry: trade.entry,
+                    stop: trade.stop,
+                    takeProfits: {
+                        tp1: trade.tp1 ?? 0,
+                        tp2: trade.tp2,
+                        tp3: trade.tp3,
+                        tp4: trade.tp4,
+                        tp5: trade.tp5,
+                        tp6: trade.tp6
+                    },
+                    validation: {
+                        isValid: false,
+                        message: `Erro ao processar trade ${trade.id}: ${error instanceof Error ? error.message : String(error)}`,
+                        volumeAnalysis: {
+                            color: 'red',
+                            stdBar: 0,
+                            currentVolume: 0,
+                            mean: 0,
+                            std: 0
+                        },
+                        entryAnalysis: {
+                            currentClose: 0,
+                            canEnter: false,
+                            hasClosePriceBeforeEntry: false,
+                            message: 'Erro ao processar trade'
+                        }
+                    },
+                    analysisUrl: '',
+                    volume_required: trade.volume_required,
+                    volume_adds_margin: trade.volume_adds_margin,
+                    setup_description: trade.setup_description ?? 'Erro ao processar trade',
+                    interval: null,
+                    executionError: error instanceof Error ? error.message : String(error)
+                });
+                continue;
             }
-        } catch (error) {
-            console.error('Error processing trades:', error);
-            throw error;
         }
+
     }
 
     private async cancelAndCloseTrade(trade: TradeRecord): Promise<void> {
@@ -127,7 +203,7 @@ export class TradeOrderProcessor {
         }
     }
 
-    private async processTrade(trade: TradeRecord): Promise<void> {
+    private async processTrade(trade: TradeRecord): Promise<boolean | void> {
         try {
             // Collect all order IDs that need to be checked
             const allOrderIds = [
@@ -163,6 +239,9 @@ export class TradeOrderProcessor {
             // Get status for all orders
             const orderStatuses = await this.getOrderStatusesWithDelay(orderInfos, 1000);
 
+            // Variável para guardar o valor de isFilled do TP1
+            let tp1IsFilled: boolean | undefined = undefined;
+
             // Process each order status
             for (const [orderId, status] of orderStatuses) {
                 if (!status) {
@@ -185,6 +264,14 @@ export class TradeOrderProcessor {
 
                 // Get detailed status information
                 const details = await this.orderStatusChecker.getOrderStatusWithDetails(orderId, trade.symbol);
+
+                // Se for o primeiro takeprofit, guarda o valor de isFilled
+                if (orderId === trade.tp1OrderId) {
+                    if (typeof details.isFilled !== 'undefined') {
+                        console.log(`Primeiro Take Profit (TP1) isFilled para o trade ${trade.id}:`, details.isFilled);
+                        tp1IsFilled = details.isFilled;
+                    }
+                }
 
                 // Calculate PnL, fee, and result
                 let pnl = 0;
@@ -281,6 +368,7 @@ export class TradeOrderProcessor {
                     console.log(`Trade ${trade.id} remains open - ${orderId} is ${details.status.status}`);
                 }
             }
+            return tp1IsFilled;
         } catch (error) {
             console.error(`Error processing trade ${trade.id}:`, error);
         }

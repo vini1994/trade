@@ -337,7 +337,9 @@ export class PositionHistoryService {
         // Processar cada posição individualmente
         positions.forEach(position => {
             const netProfit = parseFloat(position.netProfit);
-            profits.push(netProfit);
+            if (netProfit > 0) {
+                profits.push(netProfit);
+            }
             
             // Atualizar sequências
             if (netProfit > 0) {
@@ -549,7 +551,7 @@ export class PositionHistoryService {
             };
         }
         const tradesWithInfo = positions.filter(position => position.tradeInfo && position.tradeInfo?.trade && position.tradeInfo?.found);
-        const profits = positions.map(p => parseFloat(p.netProfit));
+        const profits = positions.map(p => parseFloat(p.netProfit)).filter(p => p > 0);
         const totalProfit = profits.reduce((sum, p) => p > 0 ? sum + p : sum, 0);
         const totalLoss = profits.reduce((sum, p) => p < 0 ? sum + Math.abs(p) : sum, 0);
         const netProfit = totalProfit - totalLoss;
