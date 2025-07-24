@@ -604,6 +604,19 @@ export class BingXOrderExecutor {
     };
 
     // Add activationPrice for TRIGGER_LIMIT orders
+    if (type === 'STOP') {
+      const priceNum = parseFloat(price.toString());
+      if (positionSide === 'LONG') {
+        // For LONG positions, activation price should be slightly below the target price
+        params.stopPrice = (priceNum * 0.98).toString();
+      } else {
+        // For SHORT positions, activation price should be slightly above the target price
+        params.stopPrice = (priceNum * 1.02).toString();
+      }
+    }
+
+
+    // Add activationPrice for TRIGGER_LIMIT orders
     if (type === 'TRIGGER_LIMIT') {
       const priceNum = parseFloat(price.toString());
       if (positionSide === 'LONG') {
