@@ -447,16 +447,17 @@ export class BingXOrderExecutor {
         );
       } catch (error: any) {
         // Handle max position value error
-        const msg = error?.message || '';
-        const maxPosMatch = msg.match(/The maximum position value for this leverage is ([\d.]+) USDT.*code: 80001/);
-        if (maxPosMatch) {
+        let msg = error?.message || '';
+        let maxPosMatch = msg.match(/The maximum position value for this leverage is ([\d.]+) USDT.*code: 80001/);
+        while (maxPosMatch) {
+
           const maxPositionValue = parseFloat(maxPosMatch[1]);
           // Recalculate the maximum allowed leverage for the desired quantity
           const normalizedPair = normalizeSymbolBingX(trade.symbol);
           const currentPrice = await getPairPrice(normalizedPair, this.apiClient);
-          let newLeverage = Math.floor(maxPositionValue / (currentPrice * quantity));
+          let newLeverage = leverageInfo.optimalLeverage - 1;
           if (newLeverage < 1) {
-            throw new Error(`Could not recalculate the minimum allowed leverage for position value: ${maxPositionValue} USDT, current price: ${currentPrice} and quantity: ${quantity}`);
+            throw new Error(`Could not recalculate the minimum allowed leverage for position value: ${maxPositionValue} USDT, newLeverage: ${newLeverage}, leverage:${leverageInfo.optimalLeverage}, current price: ${currentPrice} and quantity: ${quantity}`);
           }
           console.warn(`Adjusting leverage to ${newLeverage}x due to the max position value limit of ${maxPositionValue} USDT for this quantity (${quantity}).`);
           // Set the new leverage
@@ -465,18 +466,26 @@ export class BingXOrderExecutor {
           leverageInfo.optimalLeverage = newLeverage;
           await this.tradeDatabase.updateLeverage(tradeRecord.id, newLeverage);
           // Retry with the same quantity
-          entryOrder = await this.placeOrder(
-            trade.symbol,
-            trade.type === 'LONG' ? 'BUY' : 'SELL',
-            trade.type,
-            'MARKET',
-            0,
-            0,
-            quantity,
-            tradeRecord.id
-          );
-        } else {
-          throw error;
+          try {
+            entryOrder = await this.placeOrder(
+              trade.symbol,
+              trade.type === 'LONG' ? 'BUY' : 'SELL',
+              trade.type,
+              'MARKET',
+              0,
+              0,
+              quantity,
+              tradeRecord.id
+            );
+          } catch (error: any) {
+            msg = error?.message || '';
+            maxPosMatch = msg.match(/The maximum position value for this leverage is ([\d.]+) USDT.*code: 80001/);
+            if (!maxPosMatch) {
+              throw error
+            }
+
+          }
+
         }
       }
 
