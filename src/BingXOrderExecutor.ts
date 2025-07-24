@@ -107,7 +107,7 @@ export class BingXOrderExecutor {
 
             // Check if the response indicates an error
             if (response && typeof response === 'object' && 'code' in response && response.code !== 0) {
-                throw new Error(`API Error: ${response.msg} (code: ${response.code} params: ${params})`);
+                throw new Error(`API Error: ${response.msg} (code: ${response.code} params: ${JSON.stringify(params)})`);
             }
             
             // Save log if tradeId is provided
