@@ -455,9 +455,9 @@ export class BingXOrderExecutor {
           // Recalculate the maximum allowed leverage for the desired quantity
           const normalizedPair = normalizeSymbolBingX(trade.symbol);
           const currentPrice = await getPairPrice(normalizedPair, this.apiClient);
-          let newLeverage = leverageInfo.optimalLeverage - 1;
-          if (newLeverage < 1) {
-            throw new Error(`Could not recalculate the minimum allowed leverage for position value: ${maxPositionValue} USDT, newLeverage: ${newLeverage}, leverage:${leverageInfo.optimalLeverage}, current price: ${currentPrice} and quantity: ${quantity}`);
+          let newLeverage = leverageInfo.optimalLeverage - 2;
+          if (newLeverage <= 0) {
+            newLeverage = 1
           }
           console.warn(`Adjusting leverage to ${newLeverage}x due to the max position value limit of ${maxPositionValue} USDT for this quantity (${quantity}).`);
           // Set the new leverage
@@ -480,9 +480,13 @@ export class BingXOrderExecutor {
           } catch (error: any) {
             msg = error?.message || '';
             maxPosMatch = msg.match(/The maximum position value for this leverage is ([\d.]+) USDT.*code: 80001/);
-            if (!maxPosMatch) {
+            if ((!maxPosMatch) || (newLeverage == 1)) {
               throw error
             }
+
+            // Add delay before checking position
+            await new Promise(resolve => setTimeout(resolve, 100));
+
 
           }
 
