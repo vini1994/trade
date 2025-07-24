@@ -466,6 +466,11 @@ export class BingXOrderExecutor {
             // Update leverageInfo and tradeRecord
             leverageInfo.optimalLeverage = newLeverage;
             await this.tradeDatabase.updateLeverage(tradeRecord.id, newLeverage);
+            // Calculate position quantity based on margin and leverage, passing the trade object
+            quantity = await this.calculatePositionQuantity(trade.symbol, leverageInfo.optimalLeverage, trade);
+            console.log(`Calculated position quantity: ${quantity} based on margin ${this.margin} USDT and leverage ${leverageInfo.optimalLeverage}x`);
+
+
             // Retry with the same quantity
             entryOrder = await this.placeOrder(
               trade.symbol,
