@@ -433,7 +433,7 @@ export class BingXOrderExecutor {
       );
 
       // Place entry order (MARKET)
-      let entryOrder: BingXOrderResponse;
+      let entryOrder: BingXOrderResponse | null = null;
       try {
         entryOrder = await this.placeOrder(
           trade.symbol,
@@ -449,24 +449,24 @@ export class BingXOrderExecutor {
         // Handle max position value error
         let msg = error?.message || '';
         let maxPosMatch = msg.match(/The maximum position value for this leverage is ([\d.]+) USDT.*code: 80001/);
+        if (!maxPosMatch) {
+          throw error;
+        }
         while (maxPosMatch) {
-
           const maxPositionValue = parseFloat(maxPosMatch[1]);
-          // Recalculate the maximum allowed leverage for the desired quantity
-          const normalizedPair = normalizeSymbolBingX(trade.symbol);
-          const currentPrice = await getPairPrice(normalizedPair, this.apiClient);
           let newLeverage = leverageInfo.optimalLeverage - 2;
           if (newLeverage <= 0) {
             newLeverage = 1
           }
           console.warn(`Adjusting leverage to ${newLeverage}x due to the max position value limit of ${maxPositionValue} USDT for this quantity (${quantity}).`);
-          // Set the new leverage
-          await this.leverageCalculator.setLeverage(trade.symbol, newLeverage, trade.type);
-          // Update leverageInfo and tradeRecord
-          leverageInfo.optimalLeverage = newLeverage;
-          await this.tradeDatabase.updateLeverage(tradeRecord.id, newLeverage);
-          // Retry with the same quantity
+
           try {
+            // Set the new leverage
+            await this.leverageCalculator.setLeverage(trade.symbol, newLeverage, trade.type);
+            // Update leverageInfo and tradeRecord
+            leverageInfo.optimalLeverage = newLeverage;
+            await this.tradeDatabase.updateLeverage(tradeRecord.id, newLeverage);
+            // Retry with the same quantity
             entryOrder = await this.placeOrder(
               trade.symbol,
               trade.type === 'LONG' ? 'BUY' : 'SELL',
@@ -477,20 +477,21 @@ export class BingXOrderExecutor {
               quantity,
               tradeRecord.id
             );
+            maxPosMatch = null; // Exit loop on success
           } catch (error: any) {
             msg = error?.message || '';
             maxPosMatch = msg.match(/The maximum position value for this leverage is ([\d.]+) USDT.*code: 80001/);
             if ((!maxPosMatch) || (newLeverage == 1)) {
-              throw error
+              throw error;
             }
-
-            // Add delay before checking position
+            // Add delay before retrying
             await new Promise(resolve => setTimeout(resolve, 100));
-
-
           }
-
         }
+      }
+
+      if (!entryOrder) {
+        throw new Error('Failed to place entry order after multiple retries.');
       }
 
       // Add 1/2 second delay before checking position
