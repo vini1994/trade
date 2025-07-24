@@ -107,7 +107,7 @@ export class BingXOrderExecutor {
 
             // Check if the response indicates an error
             if (response && typeof response === 'object' && 'code' in response && response.code !== 0) {
-                throw new Error(`API Error: ${response.msg} (code: ${response.code} symbol: ${normalizedPair} side: ${side} positionSide: ${positionSide} type: ${type} price: ${price} stopPrice: ${stopPrice} quantity: ${quantity} clientOrderId: ${params.clientOrderId})`);
+                throw new Error(`API Error: ${response.msg} (code: ${response.code} params: ${params})`);
             }
             
             // Save log if tradeId is provided
@@ -195,11 +195,13 @@ export class BingXOrderExecutor {
                             quantity,
                             retryResponse
                         );
+                    }else{
+                        throw new Error(`API Error placeTrailingStopOrder: ${retryResponse.msg} (code: ${retryResponse.code})`);
                     }
                     
                     return retryResponse;
                 }
-                throw new Error(`API Error: ${response.msg} (code: ${response.code})`);
+                throw new Error(`API Error placeTrailingStopOrder: ${response.msg} (code: ${response.code})`);
             }
             
             // Save log if tradeId is provided
@@ -334,7 +336,8 @@ export class BingXOrderExecutor {
                         trailingStopQuantity,
                         trade.type === 'LONG' ? lastTp.price! - trade.entry : trade.entry - lastTp.price!,
                         lastTp.price!, // Use last take profit as activation price
-                        tradeId
+                        tradeId,
+                        positionId
                     )
                 );
             }
