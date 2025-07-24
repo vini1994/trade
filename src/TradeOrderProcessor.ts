@@ -144,7 +144,7 @@ export class TradeOrderProcessor {
                 }
               }
             } catch (error) {
-              console.error('Error cancelling orphaned orders:', error);
+              console.error('Error move stop to breakeven :', error);
               throw error;
             }
 
