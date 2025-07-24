@@ -97,24 +97,26 @@ export class BingXOrderExecutor {
     // Add activationPrice for TRIGGER_LIMIT orders
     if (type === 'STOP') {
       const priceNum = parseFloat(price.toString());
-      if (positionSide === 'LONG') {
-        // For LONG positions, activation price should be slightly below the target price
+      if (positionSide === 'SHORT') {
+        // For SHORT positions, activation price should be slightly below the target price
         params.stopPrice = (priceNum * 0.98).toString();
       } else {
-        // For SHORT positions, activation price should be slightly above the target price
+        // For LONG positions, activation price should be slightly above the target price
         params.stopPrice = (priceNum * 1.02).toString();
       }
     }
 
 
     // Add activationPrice for TRIGGER_LIMIT orders
-    if ((type === 'TRIGGER_LIMIT') || (type === 'STOP')) {
+    if ((type === 'TRIGGER_LIMIT') || (type === 'LIMIT')) {
       const priceNum = parseFloat(price.toString());
       if (positionSide === 'LONG') {
         // For LONG positions, activation price should be slightly below the target price
+        params.stopPrice = (priceNum * 0.98).toString();
         params.activationPrice = (priceNum * 0.98).toString();
       } else {
         // For SHORT positions, activation price should be slightly above the target price
+        params.stopPrice = (priceNum * 1.02).toString();
         params.activationPrice = (priceNum * 1.02).toString();
       }
     }
@@ -616,18 +618,16 @@ export class BingXOrderExecutor {
       quantity: quantity.toString()
     };
 
-    // Add activationPrice for TRIGGER_LIMIT orders
     if (type === 'STOP') {
       const priceNum = parseFloat(price.toString());
-      if (positionSide === 'LONG') {
-        // For LONG positions, activation price should be slightly below the target price
+      if (positionSide === 'SHORT') {
+        // For SHORT positions, activation price should be slightly below the target price
         params.stopPrice = (priceNum * 0.98).toString();
       } else {
-        // For SHORT positions, activation price should be slightly above the target price
+        // For LONG positions, activation price should be slightly above the target price
         params.stopPrice = (priceNum * 1.02).toString();
       }
     }
-
 
     // Add activationPrice for TRIGGER_LIMIT orders
     if (type === 'TRIGGER_LIMIT') {
