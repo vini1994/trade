@@ -1,9 +1,10 @@
 version: '3.8'
 
 services:
-  app:
+  # Serviço da API
+  trade-api:
     build: .
-    container_name: trade-nb-members
+    container_name: trade-api
     restart: unless-stopped
     ports:
       - "3000:3000"
@@ -14,30 +15,69 @@ services:
       - .env
     volumes:
       - ./db:/app/db
-      - ./logs:/app/logs
       - ./data:/app/data
+      - ./logs:/app/logs
     networks:
       - trade-network
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
 
+  # Serviço do Bot de Trading
+  trade-bot:
+    build: .
+    container_name: trade-bot
+    restart: unless-stopped
+    command: ["node", "dist/index.js"]
+    environment:
+      - NODE_ENV=production
+    env_file:
+      - .env
+    volumes:
+      - ./db:/app/db
+      - ./data:/app/data
+      - ./logs:/app/logs
+    networks:
+      - trade-network
+    depends_on:
+      - trade-api
+
+  # Nginx para servir frontend e proxy da API
   nginx:
     image: nginx:alpine
-    container_name: trade-nb-members-nginx
+    container_name: trade-nginx
     restart: unless-stopped
     ports:
       - "80:80"
       - "443:443"
     volumes:
-      - ./nginx.conf:/etc/nginx/conf.d/default.conf
-      - ./ssl:/etc/nginx/ssl
-    depends_on:
-      - app
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./src/frontend/dist:/usr/share/nginx/html:ro
+      - ./ssl:/etc/nginx/ssl:ro  # Para certificados SSL (opcional)
     networks:
       - trade-network
+    depends_on:
+      - trade-api
+
+  # Redis para cache (opcional)
+  redis:
+    image: redis:7-alpine
+    container_name: trade-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    networks:
+      - trade-network
+    command: redis-server --appendonly yes
 
 networks:
   trade-network:
     driver: bridge
 
 volumes:
-  db_data:
-  logs_data: 
+  redis-data:
