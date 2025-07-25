@@ -719,13 +719,35 @@ const stats = ref<PositionStats>({
 const detailedStats = ref<DetailedRiskStats | null>(null)
 const availableSymbols = ref<string[]>([])
 const availableSetupDescriptions = ref<string[]>([])
-const filters = ref({
-  symbol: 'ALL',
-  setupDescription: 'ALL',
-  startDate: '',
-  endDate: '',
-  minResult: 0
-})
+// Função para carregar filtros do localStorage
+const loadFiltersFromStorage = () => {
+  try {
+    const savedFilters = localStorage.getItem('dashboardFilters')
+    if (savedFilters) {
+      return JSON.parse(savedFilters)
+    }
+  } catch (error) {
+    console.error('Error loading filters from localStorage:', error)
+  }
+  return {
+    symbol: 'ALL',
+    setupDescription: 'ALL',
+    startDate: '',
+    endDate: '',
+    minResult: 0
+  }
+}
+
+// Função para salvar filtros no localStorage
+const saveFiltersToStorage = (filters: any) => {
+  try {
+    localStorage.setItem('dashboardFilters', JSON.stringify(filters))
+  } catch (error) {
+    console.error('Error saving filters to localStorage:', error)
+  }
+}
+
+const filters = ref(loadFiltersFromStorage())
 
 // Computed properties for risk stats
 const riskStats = computed(() => {
@@ -897,6 +919,9 @@ const loadAvailableSetupDescriptions = async () => {
 const loadData = async () => {
   loading.value = true
   try {
+    // Save current filters to localStorage
+    saveFiltersToStorage(filters.value)
+    
     // Load available symbols if not loaded yet
     if (availableSymbols.value.length === 0) {
       await loadAvailableSymbols()
@@ -1024,6 +1049,8 @@ const resetFilters = () => {
     endDate: '',
     minResult: 0
   }
+  // Clear filters from localStorage
+  localStorage.removeItem('dashboardFilters')
   loadData()
 }
 
